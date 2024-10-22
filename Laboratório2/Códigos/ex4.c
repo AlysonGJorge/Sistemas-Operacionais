@@ -5,9 +5,10 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-int procuraDentroDoVetor(int vetorAleatorio[], int comeco, int fim, int item){
+int procuraDentroDoVetor(int vetorAleatorio[], int comeco, int fim, int item, int* indexNumeroAchado){
     for (int i = comeco; i < fim; i++){
         if(vetorAleatorio[i]== item){
+            *indexNumeroAchado = i;
             return 1;
         }
     }
@@ -21,6 +22,13 @@ int main(){
     scanf("%d", &tamanhoVetor);
     printf("me informe quantos processos filhos você quer para realizar a busca\n");
     scanf("%d", &qtdFilhos);
+
+    if (qtdFilhos > tamanhoVetor)
+    {
+        printf("ERRO, NÚMERO DE FILHOS NÃO PODE SER MAIOR QUE O NÚMERO DO VETOR DE BUSCA!");
+        return 0;
+    }
+    
     printf("me diga qual o valor que você quer que eu busque\n");
     scanf("%d", &vlSolicitado);
 
@@ -40,21 +48,33 @@ int main(){
         if (filhos[i] == 0){
             //é filho
             int comeco = i * qtdDivisao;
-            int fim = (i == qtdFilhos - 1) ? restoDaDivisao : comeco + qtdDivisao;
-            if(procuraDentroDoVEtor(&vetorAleatorio[0],tamanhoVetor,fim,vlSolicitado)){
-                printf("Eu o %dº filho com o PID %d achei o número %d\n", i,getpid(), vlSolicitado);
+            int fim = (i == qtdFilhos - 1) ? comeco + qtdDivisao + restoDaDivisao : comeco + qtdDivisao;
+            int indexDoNumeroAchado;
+            if(procuraDentroDoVetor(&vetorAleatorio[0],comeco,fim,vlSolicitado, &indexDoNumeroAchado)){
+                printf("Eu o %dº filho com o PID %d fui de %d até %d, achei o número %d na posição %d\n", i,getpid(), comeco, fim, vlSolicitado, indexDoNumeroAchado);
             } else{
-                printf("Eu, o %dº filho não encontrei o número desejado :(\n", i);
+                printf("Eu, o %dº filho com o PID %d fui de %d até %d e não encontrei o número desejado :(\n", i, getpid(), comeco, fim);
             };
             exit(0);
         }
         
     }
-
-    for (int i = 0; i < qtdDivisao; i++)
+    for (int i = 0; i < qtdFilhos; i++)
     {
-        wait(NULL);
+        waitpid(filhos[i], NULL, 0);
     }
 
+    printf("o vetor continha esses números:\n");
+    for (int i = 0; i < tamanhoVetor; i++)
+    {
+        printf("%d", vetorAleatorio[i]);
+        if (i != tamanhoVetor-1)
+        {
+            printf(",");
+        }
+        
+    }
+    
+    
     return 0;
 }
