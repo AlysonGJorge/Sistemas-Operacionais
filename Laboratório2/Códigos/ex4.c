@@ -41,7 +41,7 @@ int main(){
             //é filho
             int comeco = i * qtdDivisao;
             int fim = (i == qtdFilhos - 1) ? restoDaDivisao : comeco + qtdDivisao;
-            if(procuraDentroDoVEtor(&vetorAleatorio[0],comeco,fim,vlSolicitado)){
+            if(procuraDentroDoVEtor(&vetorAleatorio[0],tamanhoVetor,fim,vlSolicitado)){
                 printf("Eu o %dº filho com o PID %d achei o número %d\n", i,getpid(), vlSolicitado);
             } else{
                 printf("Eu, o %dº filho não encontrei o número desejado :(\n", i);
