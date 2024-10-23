@@ -4,12 +4,15 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+// Essa função é a responsável 
+// parametros: limitePro
 void criaprocessos(int limiteProcessos) {
     if (limiteProcessos <= 1) {
         return;
     }
 
     pid_t leftson = fork();
+
 
     if (leftson < 0) {
         // Erro na criação do processo filho esquerdo

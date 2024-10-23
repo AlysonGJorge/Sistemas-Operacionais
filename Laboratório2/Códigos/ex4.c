@@ -4,15 +4,23 @@
 #include <time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <stdbool.h>
 
-int procuraDentroDoVetor(int vetorAleatorio[], int comeco, int fim, int item, int* indexNumeroAchado){
+
+void procuraDentroDoVetor(int vetorAleatorio[], int comeco, int fim, int vlrProcurado, int nrFilho){
+    bool achei = false;
+
     for (int i = comeco; i < fim; i++){
-        if(vetorAleatorio[i]== item){
-            *indexNumeroAchado = i;
-            return 1;
+        if(vetorAleatorio[i]== vlrProcurado){
+            achei = true;
+            printf("Eu, o %dº filho com o PID %d fui de %d até %d e encontrei o valor %d na posição %d\n", nrFilho, getpid(), comeco,fim,vlrProcurado,i);
         }
     }
-    return 0;
+    if (!achei)
+    {
+        printf("Eu, o %dº com o PID %d fui de %d até %d e não encontrei o número %d :(\n", nrFilho, getpid(), comeco, fim, vlrProcurado);
+    }
+    return;
 }
 
 int main(){
@@ -47,18 +55,15 @@ int main(){
         filhos[i] = fork();
         if (filhos[i] == 0){
             //é filho
-            int comeco = i * qtdDivisao;
-            int fim = (i == qtdFilhos - 1) ? comeco + qtdDivisao + restoDaDivisao : comeco + qtdDivisao;
+            int comeco = (i == 0) ? 0 : i * qtdDivisao;
+            int fim = (i == qtdFilhos - 1) ? (comeco + qtdDivisao + restoDaDivisao)-1 : (comeco + qtdDivisao) -1;
             int indexDoNumeroAchado;
-            if(procuraDentroDoVetor(&vetorAleatorio[0],comeco,fim,vlSolicitado, &indexDoNumeroAchado)){
-                printf("Eu o %dº filho com o PID %d fui de %d até %d, achei o número %d na posição %d\n", i,getpid(), comeco, fim, vlSolicitado, indexDoNumeroAchado);
-            } else{
-                printf("Eu, o %dº filho com o PID %d fui de %d até %d e não encontrei o número desejado :(\n", i, getpid(), comeco, fim);
-            };
+            procuraDentroDoVetor(&vetorAleatorio[0],comeco,fim,vlSolicitado, i);
             exit(0);
         }
         
     }
+    
     for (int i = 0; i < qtdFilhos; i++)
     {
         waitpid(filhos[i], NULL, 0);
@@ -74,7 +79,6 @@ int main(){
         }
         
     }
-    
     
     return 0;
 }
