@@ -11,10 +11,21 @@
     Criador por: Alyson Gonçalves Jorge, Hudson Thayllor Perrut Cassim, Natanael Tagliaferro Galafassi
     Data: 16/10/2024
     Finalidade: esse código tem como finalidade criar um número determinado pelo usuário de processos que irão procurar em um
-    vetor de números aleatórios um número também determinado pelo usuário.;
+    vetor de números aleatórios um número também determinado pelo usuário, caso nenhum número for achado o processo pai deve retornar uma mensagem
+    mensagem de não encontrado
 */
 
-void procuraDentroDoVetor(int vetorAleatorio[], int comeco, int fim, int vlrProcurado, int nrFilho){
+/*
+    função procuraDentroDoVetor
+    parâmetros:
+        vetorAleatorio: vetor de números aleatórios
+        comeco: posição inicial do vetor que o processo filho irá procurar
+        fim: posição final do vetor que o processo filho irá procurar
+        vlrProcurado: valor que o usuário deseja procurar
+        nrFilho: número do filho que está realizando a busca
+    finalidade: essa função tem como finalidade procurar um número dentro de um vetor de números aleatórios a partir de um ponto inicial e final
+*/
+int procuraDentroDoVetor(int vetorAleatorio[], int comeco, int fim, int vlrProcurado, int nrFilho){
     bool achei = false;
 
     for (int i = comeco; i < fim; i++){
@@ -26,12 +37,13 @@ void procuraDentroDoVetor(int vetorAleatorio[], int comeco, int fim, int vlrProc
     if (!achei)
     {
         printf("Eu, o %dº com o PID %d fui de %d até %d e não encontrei o número %d :(\n", nrFilho, getpid(), comeco, fim, vlrProcurado);
+        return 0;
     }
-    return;
+    return 1;
 }
 
 int main(){
-    int tamanhoVetor, qtdFilhos, vlSolicitado,qtdDivisao,restoDaDivisao;
+    int tamanhoVetor, qtdFilhos, vlSolicitado,qtdDivisao,restoDaDivisao, encontrado = false;
     
     printf("informe o tamanho do vetor\n");
     scanf("%d", &tamanhoVetor);
@@ -65,15 +77,22 @@ int main(){
             int comeco = (i == 0) ? 0 : i * qtdDivisao;
             int fim = (i == qtdFilhos - 1) ? (comeco + qtdDivisao + restoDaDivisao)-1 : (comeco + qtdDivisao) -1;
             int indexDoNumeroAchado;
-            procuraDentroDoVetor(&vetorAleatorio[0],comeco,fim,vlSolicitado, i);
-            exit(0);
+            if (procuraDentroDoVetor(&vetorAleatorio[0],comeco,fim,vlSolicitado, i) == 1)
+            {
+                exit(EXIT_SUCCESS);
+            }
+            exit(EXIT_FAILURE);
         }
-        
     }
+
+    int status;
     
     for (int i = 0; i < qtdFilhos; i++)
     {
-        waitpid(filhos[i], NULL, 0);
+        waitpid(filhos[i], &status, 0);
+        if (status == EXIT_SUCCESS) {
+            encontrado = true;
+        }
     }
 
     printf("o vetor continha esses números:\n");
@@ -84,8 +103,12 @@ int main(){
         {
             printf(",");
         }
-        
     }
     
+    if (!encontrado)
+    {
+        printf("\nO número %d não foi encontrado no vetor\n", vlSolicitado);
+    }
+
     return 0;
 }
