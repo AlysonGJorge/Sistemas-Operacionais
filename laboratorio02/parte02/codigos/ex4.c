@@ -10,6 +10,13 @@
 #define tamanhoMaximoEntrada 1024
 #define maximoArgumentos 100
 
+/*
+    Cabeçalho do código ex1.c
+    Criador por: Alyson Gonçalves Jorge, Hudson Thayllor Perrut Cassim, Natanael Tagliaferro Galafassi
+    Data: 16/10/2024
+    Finalidade: esse código tem como objtivo implementar um shell simples que executa comando do terminal linux com argumentos;
+*/
+
 int main() {
     printf("Bem-vindo ao melhor Shell do mundo!!!!!\n");
     printf("Se você digitar 9 o programa fecha\n");

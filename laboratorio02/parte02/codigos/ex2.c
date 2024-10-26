@@ -5,6 +5,14 @@
 #include <sys/wait.h>
 #include <string.h>
 
+/*
+    Cabeçalho do código ex1.c
+    Criador por: Alyson Gonçalves Jorge, Hudson Thayllor Perrut Cassim, Natanael Tagliaferro Galafassi
+    Data: 16/10/2024
+    Finalidade: esse código tem como finalidade criar um algoritmo que recebe um comando do terminal linux como argumento
+    e executa o comando desejado;
+*/
+
 int main(int argc, char *argv[]) {
     if (argc <= 1) {
         fprintf(stderr, "Uso: %s <numero_de_niveis>\n", argv[0]);

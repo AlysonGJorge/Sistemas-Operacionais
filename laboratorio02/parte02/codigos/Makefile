@@ -1,5 +1,5 @@
 compile1:
-	gcc ex1.c -o ./ex1
+	gcc ex1.c -o ./ex1 -lm
 compile2:
 	gcc ex2.c -o ./ex2 
 compile3:
