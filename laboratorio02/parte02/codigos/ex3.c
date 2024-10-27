@@ -8,7 +8,7 @@
 
 /*
     Cabeçalho do código ex1.c
-    Criador por: Alyson Gonçalves Jorge, Hudson Thayllor Perrut Cassim, Natanael Tagliaferro Galafassi
+    Criador por: Alyson Gonçalves J1orge, Hudson Thayllor Perrut Cassim, Natanael Tagliaferro Galafassi
     Data: 16/10/2024
     Finalidade: esse código tem como finalidade criar um número determinado pelo usuário de processos que irão procurar em um
     vetor de números aleatórios um número também determinado pelo usuário, caso nenhum número for achado o processo pai deve retornar uma mensagem

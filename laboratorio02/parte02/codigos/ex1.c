@@ -48,13 +48,13 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Uso: %s <numero_de_niveis>\n", argv[0]);
         return 1;
     }
-    
-    long const int processosMaximos =sysconf(_SC_CHILD_MAX); // verifica o número máximo de processos que podem ser criados
+
+    const long processosMaximos =sysconf(_SC_CHILD_MAX); // verifica o número máximo de processos que podem ser criados
     int nivelProcesos = atoi(argv[1]); // Resgata o valor informado de processos máximos pelo usuário
     int limiteProcessos = (int)pow(2,nivelProcesos); // Calcula o limite de processos que serão criados pelo programa;
 
     if(processosMaximos < limiteProcessos){
-        printf("o número de processos que você deseja (%d) excede o limite (%d)", nivelProcesos, processosMaximos);
+        printf("o número de processos que você deseja (%d) excede o limite (%ld)", nivelProcesos, processosMaximos);
         return 1;
     }
 
