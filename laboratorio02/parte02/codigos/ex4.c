@@ -19,7 +19,7 @@
 
 int main() {
     printf("Bem-vindo ao melhor Shell do mundo!!!!!\n");
-    printf("Se você digitar 9 o programa fecha\n");
+    printf("Se você digitar 'exit' o programa fecha\n");
 
     char buffer[tamanhoMaximoEntrada];
     char* argumentos[maximoArgumentos];
@@ -35,8 +35,8 @@ int main() {
             break; // Se falhar ao ler 
         }
 
-        if (strcmp(buffer, "9\n") == 0) {
-            break; // Saída se o usuário digitar "9"
+        if (strcmp(buffer, "exit\n") == 0) {
+            break; // Saída se o usuário digitar "exit"
         }
 
         if (strcmp(buffer, "\n") == 0) {

@@ -32,7 +32,10 @@ Para executar o programa `ex1`, você deve executar o seguinte comando:
 ```bash
 ./ex1 <n>
 ```
-Onde `<n>` é um número inteiro que representa a quantidade de processos filhos que serão criados. O programa irá criar `<n>` processos filhos, e cada um deles irá imprimir seu PID e o PID de seu pai.
+Onde `<n>` é um número inteiro que representa a quantidade de processos filhos que serão criados. O programa irá criar `<n>` processos filhos, e cada um deles irá imprimir seu PID e o PID de seu pai. É possível ver a árvore de processos abrindo um terminal à parte e executando o comando `pstree <pid> -p`, onde `<pid>` é o PID do processo pai, apresentado na execução do programa como:
+```bash
+Processo raiz (pid: `<pid>`).
+```
 
 ### ex2
 Para executar o programa `ex2`, você deve executar o seguinte comando:
@@ -53,4 +56,4 @@ Para executar o programa `ex4`, você deve executar o seguinte comando:
 ```bash
 ./ex4
 ```
-Ele simplesmente vai ser um programa que vai executar similar a um shell, onde o usuário pode digitar comandos e ele será executado. Para sair do programa, basta digitar `9`.
+Ele simplesmente vai ser um programa que vai executar similar a um shell, onde o usuário pode digitar comandos e ele será executado. Para sair do programa, basta digitar `exit`.
