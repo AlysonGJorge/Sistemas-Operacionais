@@ -57,3 +57,32 @@ Para executar o programa `ex4`, você deve executar o seguinte comando:
 ./ex4
 ```
 Ele simplesmente vai ser um programa que vai executar similar a um shell, onde o usuário pode digitar comandos e ele será executado. Para sair do programa, basta digitar `exit`.
+
+## Exemplos de Execução
+
+### ex1
+usuário inicializa o programa com o valor 3 de argumento
+#### exemplo de saída
+usuário abre outro terminal de digita o comando pstree + pid do pai que está no terminal do programa executado e visualiza os processos filhos.
+
+### ex2
+usuário incializa o programa com o comando ls
+#### exemplo de saída
+Digite um comando> ls
+ex1  ex1.c  ex2  ex2.c  ex3  ex3.c  ex4  ex4.c  Makefile
+
+### ex3
+usuário inicializa o programa e insere 10 para o tamanho do vetor, 3 para o número de processos filhos e 4 para o número a ser procurado
+#### exemplo de saída
+Eu, o 0º com o PID 3441 fui de 0 até 2 e não encontrei o número 4 :(
+Eu, o 1º com o PID 3442 fui de 3 até 5 e não encontrei o número 4 :(
+Eu, o 2º com o PID 3443 fui de 6 até 9 e não encontrei o número 4 :(
+o vetor continha esses números:
+66,50,59,33,89,88,27,15,6,91
+O número 4 não foi encontrado no vetor
+
+### ex4
+usuário digita o comando: ls
+#### saída de exemplo
+ex1  ex1.c  ex2  ex2.c  ex3  ex3.c  ex4  ex4.c  Makefile
+Processo 2837 executado com sucesso.
