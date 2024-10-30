@@ -64,7 +64,11 @@ Ele simplesmente vai ser um programa que vai executar similar a um shell, onde o
 usuário inicializa o programa com o valor 3 de argumento
 #### exemplo de saída
 usuário abre outro terminal de digita o comando pstree + pid do pai que está no terminal do programa executado e visualiza os processos filhos.
-
+exemplo do comando pstree:
+ex1(4368)─┬─ex1(4369)─┬─ex1(4371)
+          │           └─ex1(4373)
+          └─ex1(4370)─┬─ex1(4372)
+                      └─ex1(4374)
 ### ex2
 usuário incializa o programa com o comando ls
 #### exemplo de saída
