@@ -82,7 +82,7 @@ o vetor continha esses números:
 O número 4 não foi encontrado no vetor
 
 ### ex4
-usuário digita o comando: ls
+usuário incializa o programa e digita o comando ls no terminal
 #### saída de exemplo
 ex1  ex1.c  ex2  ex2.c  ex3  ex3.c  ex4  ex4.c  Makefile
 Processo 2837 executado com sucesso.
