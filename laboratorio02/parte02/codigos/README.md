@@ -61,32 +61,65 @@ Ele simplesmente vai ser um programa que vai executar similar a um shell, onde o
 ## Exemplos de Execução
 
 ### ex1
-usuário inicializa o programa com o valor 3 de argumento
-#### exemplo de saída
+
+Usuário inicializa o programa com o valor 3 de argumento, a execução do terminal travará pois o programa está esperando inputs do usuário para continuar, isto fazendo com que o programa fique aguardando o processo filho, sem que este encerre, possibilitando o uso do pstree em um terminal à parte.
+
+```bash
+./ex1 3
+```
+
+#### Exemplo de saída
 usuário abre outro terminal de digita o comando pstree + pid do pai que está no terminal do programa executado e visualiza os processos filhos.
 exemplo do comando pstree:
+```bash
+> pstree -c -p 4368 
+
 ex1(4368)─┬─ex1(4369)─┬─ex1(4371)
           │           └─ex1(4373)
           └─ex1(4370)─┬─ex1(4372)
                       └─ex1(4374)
+```
 ### ex2
-usuário incializa o programa com o comando ls
-#### exemplo de saída
-Digite um comando> ls
-ex1  ex1.c  ex2  ex2.c  ex3  ex3.c  ex4  ex4.c  Makefile
+Usuário inicializa o programa com o comando ls
+```bash
+./ex2 ls
+```
+#### Exemplo de saída
+```bash
+I am your father...
+ex1  ex1.c  ex2  ex2.c  ex3  ex3.c  ex4  ex4.c  Makefile  README.md
+The Force is strong with this one.
+```
 
 ### ex3
-usuário inicializa o programa e insere 10 para o tamanho do vetor, 3 para o número de processos filhos e 4 para o número a ser procurado
-#### exemplo de saída
+Usuário inicializa o programa e insere 10 para o tamanho do vetor, 3 para o número de processos filhos e 4 para o número a ser procurado
+
+```bash
+./ex3 
+informe o tamanho do vetor
+10
+me informe quantos processos filhos você quer para realizar a busca
+3
+me diga qual o valor que você quer que eu busque
+3
+```
+#### Exemplo de saída
+```bash
 Eu, o 0º com o PID 3441 fui de 0 até 2 e não encontrei o número 4 :(
 Eu, o 1º com o PID 3442 fui de 3 até 5 e não encontrei o número 4 :(
 Eu, o 2º com o PID 3443 fui de 6 até 9 e não encontrei o número 4 :(
 o vetor continha esses números:
 66,50,59,33,89,88,27,15,6,91
 O número 4 não foi encontrado no vetor
-
+```
 ### ex4
-usuário incializa o programa e digita o comando ls no terminal
-#### saída de exemplo
+Usuário incializa o programa e digita o comando ls no terminal
+```bash
+./ex4
+```
+#### Exemplo de saída
+```bash
+Digite um comando> ls
 ex1  ex1.c  ex2  ex2.c  ex3  ex3.c  ex4  ex4.c  Makefile
 Processo 2837 executado com sucesso.
+```
