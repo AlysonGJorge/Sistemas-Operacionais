@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Imprime o PID do processo raiz
-    printf("Processo raiz (pid: %d).\n", getpid());
+    printf("Processo raiz (pid: %d), para visualizar a árvore de processos digite o comando pstree -c -p %d\n", getpid(), getpid());
     criaProcessosReborn(1,nivelProcesos);
     getchar();
     return 0;
