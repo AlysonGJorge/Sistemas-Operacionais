@@ -55,9 +55,11 @@ void* calculaMedias (void* args){
 }
 
 int main(int argc, char *argv[]){
-    if (argc != 3)
+    if (argc > 3 || argc < 2)
     {
-        printf("argumentos inválidos, ./ex2 <matriz> <arquivo de resultados>");
+        printf("argumentos inválidos\n");
+        printf("caso queira que o programa leia uma matriz advinda de um arquivo incialize com ./ex2.c <arquivo saida> <matrizEntrada>\n");
+        printf("caso queira que o programa gere uma matriz aleatória incialize apenas com: ./ex2.c <arquivo saida>\n");
         return 1;
     }
     
@@ -65,8 +67,34 @@ int main(int argc, char *argv[]){
     double time_spent = 0.0;
     clock_t begin = clock();
     int r, c, NrThreads, linhaPorThread, colunaPorThread, restoPorLinha, restoPorColuna; 
-    int **matrix = read_matrix_from_file(argv[1], &r, &c);
+    int **matrix;
+
+    if (argc == 3);
+    {
+    matrix = read_matrix_from_file(argv[2], &r, &c);
     print_matrix(matrix, r, c);
+    }
+
+    if (argc == 2)
+    {
+    printf("informe o número de linhas da matriz\n");
+    scanf("%d", &r);
+    printf("informe o número de colunas da matriz\n");
+    scanf("%d", &c);
+    matrix = create_matrix(r, c);
+    generate_elements(matrix, r, c, 100);
+    char nomedoarquivo[] = sprintf(nomedoarquivo, "matriz_%dpor%d.in", r, c);
+
+    FILE *file = fopen(nomedoarquivo, "w");
+    if (file == NULL) {
+        printf("Erro ao abrir o arquivo para escrita\n");
+        return 1;
+    }
+    print_matrix(matrix, r, c);
+
+    }
+    
+    
     
     printf("Me diga quantas threads deseja criar, lembrando que o máximo é o número de linhas da matriz! que no caso é: %d\n", r);
     scanf("%d", &NrThreads);
@@ -108,8 +136,8 @@ int main(int argc, char *argv[]){
         pthread_join(threads[i], NULL);
     }
 
-    // Abre o arquivo para escrita
-    FILE *file = fopen(argv[2], "w");
+    // Abre o arquivo de saida para escrita
+    FILE *file = fopen(argv[1], "w");
     if (file == NULL) {
         printf("Erro ao abrir o arquivo para escrita\n");
         return 1;
