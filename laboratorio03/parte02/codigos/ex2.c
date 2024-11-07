@@ -55,21 +55,26 @@ void* calculaMedias (void* args){
 }
 
 int main(int argc, char *argv[]){
+
+
+
     if (argc > 3 || argc < 2)
     {
         printf("argumentos inválidos\n");
-        printf("caso queira que o programa leia uma matriz advinda de um arquivo incialize com ./ex2.c <arquivo saida> <matrizEntrada>\n");
-        printf("caso queira que o programa gere uma matriz aleatória incialize apenas com: ./ex2.c <arquivo saida>\n");
+        printf("caso queira que o programa leia uma matriz advinda de um arquivo incialize com %s <arquivo saida> <matrizEntrada>\n", argv[0]);
+        printf("caso queira que o programa gere uma matriz aleatória incialize apenas com: %s <arquivo saida>\n", argv[0]);
         return 1;
     }
     
 
-    double time_spent = 0.0;
-    clock_t begin = clock();
-    int r, c, NrThreads, linhaPorThread, colunaPorThread, restoPorLinha, restoPorColuna; 
-    int **matrix;
 
-    if (argc == 3);
+    //double time_spent = 0.0;
+    //clock_t begin = clock();
+    int r, c, NrThreads, linhaPorThread, colunaPorThread, restoPorLinha, restoPorColuna, maximoThreads; 
+    int **matrix;
+    FILE *fileEntrada;
+
+    if (argc == 3)
     {
     matrix = read_matrix_from_file(argv[2], &r, &c);
     print_matrix(matrix, r, c);
@@ -81,34 +86,58 @@ int main(int argc, char *argv[]){
     scanf("%d", &r);
     printf("informe o número de colunas da matriz\n");
     scanf("%d", &c);
+
+
     matrix = create_matrix(r, c);
     generate_elements(matrix, r, c, 100);
-    char nomedoarquivo[] = sprintf(nomedoarquivo, "matriz_%dpor%d.in", r, c);
+    char nomedoarquivo[200];
+    sprintf(nomedoarquivo, "matriz_%dpor%d.in", r, c);
 
-    FILE *file = fopen(nomedoarquivo, "w");
-    if (file == NULL) {
+    fileEntrada = fopen(nomedoarquivo, "w");
+    if (fileEntrada == NULL) {
         printf("Erro ao abrir o arquivo para escrita\n");
         return 1;
     }
     print_matrix(matrix, r, c);
 
+    char primeiraLinha[3];
+    sprintf(primeiraLinha, "%dx%d\n", r, c);
+    fprintf(fileEntrada, primeiraLinha);
+    for (int i = 0; i < r; i++)
+    {
+            for (int j = 0; j < c; j++)
+            {
+                if (j == c - 1)
+                {
+                    fprintf(fileEntrada, "%d\n", matrix[i][j]);
+                } else{
+                    fprintf(fileEntrada, "%d ", matrix[i][j]);
+                }
+            }
+        } 
+    fclose(fileEntrada);    
     }
     
+    if (r > c)
+    {
+        maximoThreads = c;
+    } else{
+        maximoThreads = r;
+    }
     
-    
-    printf("Me diga quantas threads deseja criar, lembrando que o máximo é o número de linhas da matriz! que no caso é: %d\n", r);
+    printf("Me diga quantas threads deseja criar, lembrando que o máximo é o número de linhas da matriz! que no caso é: %d\n", maximoThreads);
     scanf("%d", &NrThreads);
 
-    if (NrThreads > r){
-        printf("Número de threads maior que o número de linhas da matriz, por favor insira um número menor ou igual a %d\n", r);
+    if (NrThreads > maximoThreads){
+        printf("Número de threads maior que o número de linhas da matriz, por favor insira um número menor ou igual a %d\n", maximoThreads);
         return 1;
     }
 
     pthread_t threads[NrThreads];
-    linhaPorThread = r / NrThreads;
-    colunaPorThread = c / NrThreads;
-    restoPorLinha = r % NrThreads;
-    restoPorColuna = c % NrThreads;
+    linhaPorThread = r / NrThreads; // aritmetico
+    colunaPorThread = c / NrThreads; // geometrico
+    restoPorLinha = r % NrThreads; // aritmetico
+    restoPorColuna = c % NrThreads; // geometrico
     double mediasAritmetica[r];
     double mediasGeometrica[c];
     threadData DataDasThreads[NrThreads];
@@ -162,13 +191,13 @@ int main(int argc, char *argv[]){
     }
     free(matrix);
 
-    clock_t end = clock();
+    //clock_t end = clock();
  
     // calcula o tempo decorrido encontrando a diferença (end - begin) e
     // dividindo a diferença por CLOCKS_PER_SEC para converter em segundos
-    time_spent += (double)(end - begin) / CLOCKS_PER_SEC;
+   // time_spent += (double)(end - begin) / CLOCKS_PER_SEC;
  
-    printf("The elapsed time is %f seconds", time_spent);
+    //printf("The eapsed time is %f seconds", time_spent);
 
     return 0;
 }
