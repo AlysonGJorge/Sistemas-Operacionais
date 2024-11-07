@@ -68,8 +68,8 @@ int main(int argc, char *argv[]){
     
 
 
-    //double time_spent = 0.0;
-    //clock_t begin = clock();
+    double time_spent = 0.0;
+    clock_t begin = clock();
     int r, c, NrThreads, linhaPorThread, colunaPorThread, restoPorLinha, restoPorColuna, maximoThreads; 
     int **matrix;
     FILE *fileEntrada;
@@ -124,7 +124,7 @@ int main(int argc, char *argv[]){
     } else{
         maximoThreads = r;
     }
-    
+
     printf("Me diga quantas threads deseja criar, lembrando que o máximo é o número de linhas da matriz! que no caso é: %d\n", maximoThreads);
     scanf("%d", &NrThreads);
 
@@ -191,13 +191,14 @@ int main(int argc, char *argv[]){
     }
     free(matrix);
 
-    //clock_t end = clock();
+    clock_t end = clock();
  
     // calcula o tempo decorrido encontrando a diferença (end - begin) e
     // dividindo a diferença por CLOCKS_PER_SEC para converter em segundos
-   // time_spent += (double)(end - begin) / CLOCKS_PER_SEC;
+    time_spent += (double)(end - begin) / CLOCKS_PER_SEC;
  
-    //printf("The eapsed time is %f seconds", time_spent);
+    printf("Resultado gerado com sucessos!");
+    printf("Demorou %f segundos\n", time_spent);
 
     return 0;
 }
