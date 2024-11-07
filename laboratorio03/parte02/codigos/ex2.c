@@ -6,6 +6,14 @@
 #include "matriz.h"
 #include <time.h>
 
+/**
+ * cabeçalho do ex2.c
+ * 
+ * Autores: Alyson Gonçalves Jorge, Hudson Thayllor Perrut Cassim, Natanael Tagliaferro Galafassi
+ * Data: 23/10/2024
+ * Finalidade: utilizar Threads para realizar cálculos de médias aritméticas e geométricas em uma matriz
+ */
+
 typedef struct {
     int **matrix;
     int threadId;
