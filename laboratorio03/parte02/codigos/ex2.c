@@ -30,10 +30,17 @@ typedef struct {
     int restoGeometrica;
 
     double* mediasAritmetica;
-    double* mediasGeometrica;
+    long double* mediasGeometrica;
 
 } threadData;
 
+
+/*
+    parametros da função calculaMediaAritmetica:
+        linhaDaMatriz: número da linha que será calculada a média
+        colunasTotais: número totais de colunas que cada linha percorre
+        matrix: matriz que será utilizada para calcular a média
+*/
 double calculaMediaAritmetica(int linhaDaMatriz, int colunasTotais, int** matrix){
     double soma = 0;
     for (int j = 0; j < colunasTotais; j++) {
@@ -42,14 +49,26 @@ double calculaMediaAritmetica(int linhaDaMatriz, int colunasTotais, int** matrix
     return soma / (double)colunasTotais;
 }
 
-double calculaMediaGeometrica(int colunaDaMatriz, int linhasTotais, int** matrix){
-    double produto = 1;
+/*
+    parametros da função calculaMediaGeometrica:
+        colunaDaMatriz: número da coluna que será calculada a média
+        linhasTotais: número totais de linhas que cada coluna percorre
+        matrix: matriz que será utilizada para calcular a média geométrica
+*/
+long double calculaMediaGeometrica(int colunaDaMatriz, int linhasTotais, int** matrix){
+    long double produto = 1;
     for (int i = 0; i < linhasTotais; i++) {
         produto *= matrix[i][colunaDaMatriz];
     }
-    return pow(produto, 1.0 / linhasTotais);
+
+    long double resultado = pow(produto, 1.0 / linhasTotais);
+    return resultado;
 }
 
+/*
+    parametros da função calculaMediaGeometrica:
+        args: estrutura que contém os dados necessários para calcular as médias
+*/
 void* calculaMedias (void* args){
     threadData* data = (threadData*) args;
     for (int i = data->comecoLinhaAritmetica; i <= data->finalLinhaAritmetica; i++) {
@@ -64,8 +83,7 @@ void* calculaMedias (void* args){
 
 int main(int argc, char *argv[]){
 
-
-
+    // Verifica se o usuário passou os argumentos corretamente
     if (argc > 3 || argc < 2)
     {
         printf("argumentos inválidos\n");
@@ -74,19 +92,23 @@ int main(int argc, char *argv[]){
         return 1;
     }
     
-
-
     double time_spent = 0.0;
+    // Inicia a contagem do tempo
     clock_t begin = clock();
     int r, c, NrThreads, linhaPorThread, colunaPorThread, restoPorLinha, restoPorColuna, maximoThreads; 
     int **matrix;
     FILE *fileEntrada;
 
+    // Caso o usuário deseje ler uma matriz de um arquivo ele deve informar o nome do arquivo
+    // Após isso a matriz é lida e impressa na tela
     if (argc == 3)
     {
     matrix = read_matrix_from_file(argv[2], &r, &c);
     print_matrix(matrix, r, c);
     }
+
+
+    // Caso o usuário deseje criar uma matriz aleatória
 
     if (argc == 2)
     {
@@ -95,12 +117,15 @@ int main(int argc, char *argv[]){
     printf("informe o número de colunas da matriz\n");
     scanf("%d", &c);
 
-
+    // gera a matriz aleatória
     matrix = create_matrix(r, c);
     generate_elements(matrix, r, c, 100);
+
+    // cria o nome do arquivo
     char nomedoarquivo[200];
     sprintf(nomedoarquivo, "matriz_%dpor%d.in", r, c);
 
+    // abre o arquivo para escrita
     fileEntrada = fopen(nomedoarquivo, "w");
     if (fileEntrada == NULL) {
         printf("Erro ao abrir o arquivo para escrita\n");
@@ -108,11 +133,16 @@ int main(int argc, char *argv[]){
     }
     print_matrix(matrix, r, c);
 
-    char primeiraLinha[3];
-    sprintf(primeiraLinha, "%dx%d\n", r, c);
+    char primeiraLinha[10];
+    
+    // coloca na primeira linha do arquivo o identificador
+    snprintf(primeiraLinha, sizeof(primeiraLinha), "%dx%d\n", r, c);
+
+    // preenche o arquivo com os dados da matriz
     fprintf(fileEntrada, primeiraLinha);
     for (int i = 0; i < r; i++)
     {
+        
             for (int j = 0; j < c; j++)
             {
                 if (j == c - 1)
@@ -123,9 +153,11 @@ int main(int argc, char *argv[]){
                 }
             }
         } 
-    fclose(fileEntrada);    
+    fclose(fileEntrada); // fecha o arquivo
     }
-    
+
+
+    // Verifica qual será o máximo de threads possivel no sistema
     if (r > c)
     {
         maximoThreads = c;
@@ -133,42 +165,49 @@ int main(int argc, char *argv[]){
         maximoThreads = r;
     }
 
-    printf("Me diga quantas threads deseja criar, lembrando que o máximo é o número de linhas da matriz! que no caso é: %d\n", maximoThreads);
+    printf("Me diga quantas threads deseja criar, lembrando que o máximo é o menor número entre colunaXLinha! que no caso é: %d\n", maximoThreads);
     scanf("%d", &NrThreads);
 
     if (NrThreads > maximoThreads){
-        printf("Número de threads maior que o número de linhas da matriz, por favor insira um número menor ou igual a %d\n", maximoThreads);
+        printf("Número de threads maior que o menor número entre colunaXlinha, por favor insira um número menor ou igual a %d\n", maximoThreads);
         return 1;
     }
 
-    pthread_t threads[NrThreads];
+    pthread_t threads[NrThreads]; // cria um vetor de threads
     linhaPorThread = r / NrThreads; // aritmetico
     colunaPorThread = c / NrThreads; // geometrico
     restoPorLinha = r % NrThreads; // aritmetico
     restoPorColuna = c % NrThreads; // geometrico
     double mediasAritmetica[r];
-    double mediasGeometrica[c];
+    long double mediasGeometrica[c];
     threadData DataDasThreads[NrThreads];
 
-    // Cria Threads para realizar o cálculo
+    // Cria Threads para realizar o cálculo, faz os cálculos necessários para determinal qual será o caminho de cada thread para realizar
+    // Ambos os cálculos de média
+
     for (int i = 0; i < NrThreads; i++) {   
-        DataDasThreads[i].threadId = i;
-        DataDasThreads[i].matrix = matrix;
-        DataDasThreads[i].TotalColunas = &c;
-        DataDasThreads[i].TotalLinhas = &r;
-        DataDasThreads[i].comecoLinhaAritmetica = i * linhaPorThread;
+        DataDasThreads[i].threadId = i; // passa o id da thread
+        DataDasThreads[i].matrix = matrix; // passa a matriz para a thread
+        DataDasThreads[i].TotalColunas = &c; // usando o endereço para não consumir muita memória
+        DataDasThreads[i].TotalLinhas = &r; // usando o endereço para não consumir muita memória
+        DataDasThreads[i].comecoLinhaAritmetica = i * linhaPorThread; // calcula o começo da linha aritmetica
+        // calcula qual será o final da linha aritmetica
+        // verifica se é a última thread, se for adiciona o resto da divisão para a última thread
         DataDasThreads[i].finalLinhaAritmetica = i != NrThreads - 1 ? DataDasThreads[i].comecoLinhaAritmetica + linhaPorThread - 1 : DataDasThreads[i].comecoLinhaAritmetica + linhaPorThread + restoPorLinha - 1;
-        DataDasThreads[i].comecoColunaGeometrica = i * colunaPorThread;
+        DataDasThreads[i].comecoColunaGeometrica = i * colunaPorThread; // calcula o começo da coluna geometrica
+        // calcula qual será o final da coluna geometrica
+        // verifica se é a última thread, se for adiciona o resto da divisão para a última thread
         DataDasThreads[i].finalColunaGeometrica = i != NrThreads - 1 ? DataDasThreads[i].comecoColunaGeometrica + colunaPorThread - 1 : DataDasThreads[i].comecoColunaGeometrica + colunaPorThread + restoPorColuna - 1;
-        DataDasThreads[i].mediasAritmetica = mediasAritmetica;
-        DataDasThreads[i].mediasGeometrica = mediasGeometrica;
+        DataDasThreads[i].mediasAritmetica = mediasAritmetica; // passa o endereço da média aritmetica
+        DataDasThreads[i].mediasGeometrica = mediasGeometrica; // passa o endereço da média geometrica
         int status = pthread_create(&threads[i], NULL, calculaMedias, (void*) &DataDasThreads[i]);
         if (status != 0){
             printf("Erro ao criar a thread %d\n", i);
             return 1;
         }
     }
-    
+
+    // Espera as threads terminarem
     for (int i = 0; i < NrThreads; i++) {
         pthread_join(threads[i], NULL);
     }
@@ -187,7 +226,7 @@ int main(int argc, char *argv[]){
 
     // Escreve as médias geométricas no arquivo
     for (int i = 0; i < c; i++) {
-        fprintf(file, "Média geométrica da coluna %d: %f\n", i, mediasGeometrica[i]);
+        fprintf(file, "Média geométrica da coluna %d: %Lf\n", i, mediasGeometrica[i]);
     }
 
     // Fecha o arquivo
@@ -199,11 +238,12 @@ int main(int argc, char *argv[]){
     }
     free(matrix);
 
+    // Finaliza a contagem do tempo
     clock_t end = clock();
  
-    // calcula o tempo decorrido encontrando a diferença (end - begin) e
-    // dividindo a diferença por CLOCKS_PER_SEC para converter em segundos
+    // calcula o tempo decorrido
     time_spent += (double)(end - begin) / CLOCKS_PER_SEC;
+ 
  
     printf("Resultado gerado com sucessos!");
     printf("Demorou %f segundos\n", time_spent);
