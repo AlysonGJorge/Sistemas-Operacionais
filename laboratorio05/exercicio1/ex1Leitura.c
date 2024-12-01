@@ -8,6 +8,14 @@
 
 #define SERVER_FIFO "/tmp/serverfifo"
 
+void fodase(char* buffer){
+        printf("Envie uma mensagem! \n");
+    fgets(buffer, sizeof(buffer), stdin);
+    buffer[strcspn(buffer, "\n")] = '\0'; // Remove o caractere de nova linha
+    printf("Sua mensagem é:\n");
+    printf("%s\n", buffer);
+}
+
 void contaCaracteres(char* buffer){
     int posicaoString = 0;
     int nrConsoantes = 0;
@@ -37,30 +45,38 @@ void contaCaracteres(char* buffer){
     return;
 }
 
-int main(int argc, char **argv){
-    int fd_server;
-    char buffer[256];
+int main (int argc, char **argv)
+{
+    int fd_server, num_bytes_read;
+    char buf [512];
 
-    // //cria um FIFO se inexistente
+    // cria um FIFO se inexistente
     if ((mkfifo (SERVER_FIFO, 0664) == -1) && (errno != EEXIST)) {
         perror ("mkfifo");
         exit (1);
     }
 
-        // abre um FIFO
-    if ((fd_server = open (SERVER_FIFO, O_RDONLY)) == -1){
+    // abre um FIFO
+    if ((fd_server = open (SERVER_FIFO, O_RDONLY)) == -1)
         perror ("open");
+
+    // lê e trata mensagens do FIFO 
+    while (1) {
+        memset (buf, '\0', sizeof (buf));
+        num_bytes_read = read (fd_server, buf, sizeof (buf));
+        switch (num_bytes_read) {
+            case -1: 
+                perror ("-- read error"); break;
+            case  0:  
+                printf("-- None data...close and reopen fifo --\n");
+                close(fd_server);
+                fd_server = open (SERVER_FIFO, O_RDONLY); 
+                break;
+            default: 
+                contaCaracteres(buf);
+        }
     }
 
-    printf("Envie uma mensagem! \n");
-    fgets(buffer, sizeof(buffer), stdin);
-    buffer[strcspn(buffer, "\n")] = '\0'; // Remove o caractere de nova linha
-    printf("Sua mensagem é:\n");
-    printf("%s\n", buffer);
-    contaCaracteres(buffer);
-    
     if (close (fd_server) == -1)
-    perror ("close");
-    return 0;
-    
+        perror ("close");
 }
