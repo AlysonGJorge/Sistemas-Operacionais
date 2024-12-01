@@ -18,13 +18,10 @@ void handle_signal(int signal) {
 }
 
 void setup_signal_handlers() {
-    struct sigaction sa;
-    sa.sa_handler = handle_signal;
-    sa.sa_flags = 0;
-
-    sigemptyset(&sa.sa_mask);
-    sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGTERM, &sa, NULL);
+    if (signal(SIGINT, handle_signal) == SIG_ERR)
+        printf("\ncan't catch SIGINT\n");
+    if (signal(SIGTERM, handle_signal) == SIG_ERR)
+        printf("\ncan't catch SIGQUIT\n");
 }
 
 int main() {
@@ -38,7 +35,7 @@ int main() {
         perror("Erro ao abrir o arquivo");
         return EXIT_FAILURE;
     }
-
+    printf("eu, o programa com o pid %d irei escrever no arquivo %s", getpid(), filename);
     printf("Arquivo '%s' aberto para escrita e leitura.\n", filename);
     printf("Digite texto para salvar no arquivo. Digite 'sair' para encerrar o programa normalmente.\n");
 
