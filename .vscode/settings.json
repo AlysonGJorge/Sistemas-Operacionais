@@ -3,6 +3,7 @@
     "stdbool.h": "c",
     "string.h": "c",
     "wait.h": "c",
-    "stdio.h": "c"
+    "stdio.h": "c",
+    "types.h": "c"
   }
 }

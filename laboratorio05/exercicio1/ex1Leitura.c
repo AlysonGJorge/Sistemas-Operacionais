@@ -8,13 +8,18 @@
 
 #define SERVER_FIFO "/tmp/serverfifo"
 
-void fodase(char* buffer){
-        printf("Envie uma mensagem! \n");
-    fgets(buffer, sizeof(buffer), stdin);
-    buffer[strcspn(buffer, "\n")] = '\0'; // Remove o caractere de nova linha
-    printf("Sua mensagem é:\n");
-    printf("%s\n", buffer);
-}
+/*
+    Cabeçalho do código ex1Escrita.c
+    Criado por: Alyson Gonçalves Jorge, Hudson Thayllor Perrut Cassim, Natanael Tagliaferro Galafassi
+    Data: 29/11/2024
+    Finalidade: Algoritmo que Lê mensagens de um FIFO;
+*/
+
+/**
+ * Função contaCaracteres 
+ * conta o número de caracteres, vogais, consoantes e espaços em uma string
+ * parâmetros: buffer - string a ser analisada
+*/
 
 void contaCaracteres(char* buffer){
     int posicaoString = 0;
@@ -38,6 +43,7 @@ void contaCaracteres(char* buffer){
         }
         posicaoString++;
     }
+    printf("Inicio da contagem de caracteres:\n");
     printf("Número de caracteres: %d\n", posicaoString);
     printf("Número de vogais: %d\n", nrVogais);
     printf("Número de consoantes: %d\n", nrConsoantes);
@@ -61,6 +67,7 @@ int main (int argc, char **argv)
         perror ("open");
 
     // lê e trata mensagens do FIFO 
+    printf("Leitura iniciada, aguardando mensagens...\n");
     while (1) {
         memset (buf, '\0', sizeof (buf));
         num_bytes_read = read (fd_server, buf, sizeof (buf));
@@ -73,10 +80,13 @@ int main (int argc, char **argv)
                 fd_server = open (SERVER_FIFO, O_RDONLY); 
                 break;
             default: 
+                printf("Mensagem recebida:\n%s\n", buf);
                 contaCaracteres(buf);
         }
     }
 
+    // fecha o FIFO
     if (close (fd_server) == -1)
         perror ("close");
+    return 0;
 }
