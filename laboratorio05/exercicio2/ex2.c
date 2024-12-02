@@ -5,7 +5,7 @@
 #include <unistd.h>
 
 FILE *file; // Ponteiro global para o arquivo
-int should_continue = 1; // Flag para controle do loop principal
+int should_continue = 1; // Continua o Loop
 
 void handle_signal(int signal) {
     if (file != NULL) {
@@ -14,10 +14,11 @@ void handle_signal(int signal) {
         fclose(file);
         printf("Arquivo fechado com sucesso.\n");
     }
-    should_continue = 0; // Sinaliza para encerrar o programa
+    should_continue = 0; // Finaliza o loop
 }
 
 void setup_signal_handlers() {
+    /* Associa a função tratadora de sinais */
     if (signal(SIGINT, handle_signal) == SIG_ERR)
         printf("\ncan't catch SIGINT\n");
     if (signal(SIGTERM, handle_signal) == SIG_ERR)
