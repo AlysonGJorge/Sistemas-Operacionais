@@ -9,15 +9,15 @@
 #include <random>
 #include <map>
 #include <queue>
+#include <utility>
 
 #define NUM_PADAWANS 5
 #define NUM_ESPECTADORES 10
-#define NUM_TESTES 3
 
 // Variaveis globais
 int numPadawans = NUM_PADAWANS;
 int numEspectadores = NUM_ESPECTADORES;
-int numTestes = NUM_ESPECTADORES;
+
 
 // Utilitarios
 
@@ -37,41 +37,49 @@ class MonitorSalao {
 private:
 	pthread_mutex_t mutex;
 	pthread_cond_t condPadawan;
+	pthread_cond_t condPadawanAvaliacao;
 	pthread_cond_t condEspectador;
 	pthread_cond_t condTranca;
+	pthread_cond_t condTeste;
 
 	int capacidadeMax;
-	std::map<int, bool> padawansNaSala;
+	int realizandoTesteCount;
+	std::map<int, bool> padawansNoSalao;
 	std::queue<int> padawansNaEntrada;
 	int espectadoresCount;
+	bool testeEmAndamento = false;
 	bool salaoAberto = false;
 
 public:
 
 
-	MonitorSalao(int capacidadeMax): capacidadeMax(capacidadeMax), padawansNaSala(), espectadoresCount(0), salaoAberto(false) {
+	MonitorSalao(int capacidadeMax): capacidadeMax(capacidadeMax), padawansNoSalao(), espectadoresCount(0), salaoAberto(false) {
 		pthread_mutex_init(&mutex, NULL);
 		pthread_cond_init(&condPadawan, NULL);
 		pthread_cond_init(&condEspectador, NULL);
+		pthread_cond_init(&condTranca, NULL);
+		pthread_cond_init(&condTeste, NULL);
 	}
 
 	~MonitorSalao() {
 		pthread_mutex_destroy(&mutex);
 		pthread_cond_destroy(&condPadawan);
 		pthread_cond_destroy(&condEspectador);
+		pthread_cond_destroy(&condTranca);
+		pthread_cond_destroy(&condTeste);
 	}
 
 
 	std::map<int, bool> getPadawansNaSala() {
-		return this->padawansNaSala;
+		return this->padawansNoSalao;
 	}
 
 	bool estaAprovado(int padawan) {
-		return this->padawansNaSala[padawan];
-	}
+		return this->padawansNoSalao[padawan];
+ 	}
 
 	void aprovarPadawan(int padawan) {
-		this->padawansNaSala[padawan] = true;
+		this->padawansNoSalao[padawan] = true;
 	}
 
 	void decrementaCapacidade() {
@@ -98,7 +106,7 @@ public:
 
 		padawansNaEntrada.pop();
 
-		this->padawansNaSala[id] = false;
+		this->padawansNoSalao[id] = false;
 		std::cout << "Padawan_" << id << " entrou no salao" << std::endl;
 		cumprimentaMestresAvaliadores(id);
 
@@ -108,7 +116,7 @@ public:
 	void saiSalaoPadawan(int id) {
 		pthread_mutex_lock(&mutex);
 
-		padawansNaSala.erase(id);
+		padawansNoSalao.erase(id);
 		std::cout << "Padawan_" << id << " saiu do salao" << std::endl;
 		this->decrementaCapacidade();
 
@@ -123,7 +131,7 @@ public:
 		pthread_mutex_lock(&mutex);
 		std::cout << "Padawan_" << id << " aguardando a avaliacao" << std::endl;
 
-		while(this->salaoAberto) {
+		while(!this->testeEmAndamento) {
 			pthread_cond_wait(&condPadawan, &mutex);
 		}
 
@@ -133,6 +141,14 @@ public:
 	void realizaTeste(int id) {
 		pthread_mutex_lock(&mutex);
 		std::cout << "Padawan_" << id << " realizando teste" << std::endl;
+		realizandoTesteCount++;
+		if(realizandoTesteCount == this->padawansNoSalao.size())
+			pthread_cond_broadcast(&condTeste);
+
+		while(this->testeEmAndamento){
+			pthread_cond_wait(&condPadawanAvaliacao, &mutex);
+		}
+		
 		pthread_mutex_unlock(&mutex);
 	}
 
@@ -176,9 +192,7 @@ public:
 	}
 
 	void assisteTestes(int id) {
-		pthread_mutex_lock(&mutex);
 		std::cout << "Espectador_" << id << " assistindo os testes" << std::endl;
-		pthread_mutex_unlock(&mutex);
 	}
 	
 	// Yoda
@@ -186,7 +200,8 @@ public:
 	void iniciarTestes() {
 		pthread_mutex_lock(&mutex);
 		std::cout << "[Yoda]: Testes iniciados." << std::endl;
-		salaoAberto = false;
+		testeEmAndamento = true;
+
 		pthread_mutex_unlock(&mutex);
 	}
 
@@ -200,27 +215,30 @@ public:
 
 	void anunciaResultado(std::map<int, bool> padawans) {
 		pthread_mutex_lock(&mutex);
-		std::random_device rd;
-		std::mt19937 g(rd());
+		
+		while(realizandoTesteCount < this->padawansNoSalao.size()) {
+			pthread_cond_wait(&condTeste, &mutex);
+		}
 
 		std::cout << "[Yoda]: O teste concluído foi. Os resultados anunciarei!" << std::endl;
-
+		
+		testeEmAndamento = false;
 		std::cout << "[Yoda]: Os aprovados estes são: ";
 
 		std::list<int> aprovados;
-		for (int i = 0; i < padawans.size() ; i++) {
+		for (auto& padawan : padawans) {
 			int pass = rand() % 100 + 1;
 			if (pass >= 50){
-				std::cout << "Padawan_" << i << " ";
-				aprovados.push_back(i);
-				this->aprovarPadawan(i);
+				std::cout << "Padawan_" << padawan.first << " ";
+				aprovados.push_back(padawan.first);
+				this->aprovarPadawan(padawan.first);
 			}
 		}
 
 		cortaTranca(aprovados);
 
 		std::cout << "[Yoda]: Todos os aprovados jedi se tornaram. Por encerrada a cerimônia, declaro!" << std::endl;
-
+		realizandoTesteCount = 0;
 		
 		pthread_cond_signal(&condTranca);
 		pthread_mutex_unlock(&mutex);
@@ -249,12 +267,15 @@ public:
 
 		salaoAberto = true;
 
-		while(time > 0 && !padawansNaEntrada.empty()){
-			pthread_cond_signal(&condPadawan);
-			sleep(1);
-			time--;
-		}	
+		pthread_cond_broadcast(&condPadawan);
+		pthread_cond_broadcast(&condEspectador);
 		
+		pthread_mutex_unlock(&mutex);
+
+		sleep(time);	
+
+		pthread_mutex_lock(&mutex);
+		salaoAberto = false;
 
 		pthread_mutex_unlock(&mutex);
 	}
@@ -337,9 +358,6 @@ int main(int argc, char** argv) {
 
 	monitorSalao.setCapacidadeMax(numPadawans);
 
-	pthread_create(&yoda, NULL, yodaThread, NULL);
-
-
 	for (int i = 0; i < numPadawans; i++) {
 		int *id = new int(i);
 		pthread_create(&padawans[i], NULL, padawanThread, (void*)id);
@@ -349,6 +367,8 @@ int main(int argc, char** argv) {
 		int *id = new int(i);
 		pthread_create(&espectadores[i], NULL, espectadorThread, (void*)id);
 	}
+
+	pthread_create(&yoda, NULL, yodaThread, NULL);
 
 	for (int i = 0; i < numPadawans; i++) {
     	pthread_join(padawans[i], NULL);
