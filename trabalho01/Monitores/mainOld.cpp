@@ -49,7 +49,7 @@ private:
 	std::map<int, bool> padawansNoSalao;
 	std::queue<int> padawansNaEntrada;
 	int espectadoresCount;
-	bool testeEmAndamento = false;
+	bool todosPadawansEmTeste = false;
 	bool salaoAberto = false;
 
 public:
@@ -133,7 +133,7 @@ public:
 		pthread_mutex_lock(&mutex);
 		std::cout << "Padawan_" << id << " aguardando a avaliacao" << std::endl;
 
-		while(!this->testeEmAndamento) {
+		while(!this->todosPadawansEmTeste) {
 			pthread_cond_wait(&condPadawan, &mutex);
 		}
 
@@ -150,7 +150,7 @@ public:
             pthread_cond_broadcast(&condTeste);
         }
 			
-		while(this->testeEmAndamento){
+		while(this->todosPadawansEmTeste){
             std::cout << "Travou aqui"<< std::endl;
 			pthread_cond_wait(&condPadawanAvaliacao, &mutex);
 		}
@@ -206,7 +206,7 @@ public:
 	void iniciarTestes() {
 		pthread_mutex_lock(&mutex);
 		std::cout << "[Yoda]: Testes iniciados." << std::endl;
-		testeEmAndamento = true;
+		todosPadawansEmTeste = true;
         pthread_cond_broadcast(&condPadawan);
 
 		pthread_mutex_unlock(&mutex);
@@ -229,7 +229,7 @@ public:
 
 		std::cout << "[Yoda]: O teste concluído foi. Os resultados anunciarei!" << std::endl;
 		
-		testeEmAndamento = false;
+		todosPadawansEmTeste = false;
         pthread_cond_broadcast(&condPadawanAvaliacao);
 		std::cout << "[Yoda]: Os aprovados estes são: ";
 

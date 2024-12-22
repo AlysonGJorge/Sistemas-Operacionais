@@ -30,4 +30,8 @@ $(TARGET): $(OBJS)
 clean:
 	rm -f $(OBJS) $(TARGET)
 
+debug:
+	g++ -g -pthread $(TARGET).cpp -o $(TARGET:.cpp=)
+
+
 .PHONY: all clean
