@@ -12,7 +12,9 @@
 int numPadawans = NUM_PADAWANS;
 int numEspectadores = NUM_ESPECTADORES;
 int totalPadawans;
+int totalEspectadores;
 std::list<int> padawansNoSalao;
+std::list<int> espectadoresNoSalao;
 std::list<int> padawansAprovados;
 std::queue<int> filaPadawans;
 bool primeiraExecucao;
@@ -28,6 +30,7 @@ pthread_cond_t condPadawan;
 pthread_cond_t condPadawanSalao;
 pthread_cond_t condTeste;
 pthread_cond_t condEspectador;
+pthread_cond_t condEspectadorSalao;
 pthread_cond_t condYoda;
 pthread_cond_t condCortaTranca;
 
@@ -99,6 +102,7 @@ void iniciarTestes()
 	qntdTesteSetada = false;
 	// std::cout << "To liberando os padawansalao" << std::endl;
 	pthread_cond_broadcast(&condPadawanSalao);
+	pthread_cond_broadcast(&condEspectadorSalao);
 	// pthread_mutex_unlock(&mutex);
 
 
@@ -237,7 +241,7 @@ void saiSalaoPadawan(int id, bool aprovado = false)
 
 	totalPadawans--;
 
-	if (padawansNoSalao.size() == 0)
+	if (padawansNoSalao.size() == 0 && espectadoresNoSalao.size() == 0)
 	{
 		// std::cout << std::endl << "OVO ACORDAR O YODA" << std::endl;
 		pthread_cond_signal(&condYoda);
@@ -257,7 +261,7 @@ void aguardaTestePadawan(int id)
 	// std::cout << "Testem em andamento? " << (testeEmAndamento ? "false" : "true") << std::endl;
 
 		// std::cout << std::endl << "To preso =(" << std::endl;
-		pthread_cond_wait(&condPadawanSalao, &mutex);
+	pthread_cond_wait(&condPadawanSalao, &mutex);
 		// std::cout << std::endl << "Sai da cadeia =)" << std::endl;
 
 
@@ -378,7 +382,7 @@ void *yodaThread(void *arg)
 {
 	std::cout << "Yoda foi criado" << std::endl;
 	// std::cout << "Total de padawans: " << numPadawans << std::endl;
-	while (totalPadawans > 0)
+	while (totalPadawans > 0 && totalEspectadores > 0)
 	{
 		liberarEntrada();
 		iniciarTestes();
@@ -415,12 +419,60 @@ void *padawanThread(void *arg)
 	pthread_exit(NULL);
 }
 
+
+void entraSalaoEspectador(int id)
+{
+	pthread_mutex_lock(&mutex);
+	while (!salaoAberto)
+	{
+		pthread_cond_wait(&condEspectador, &mutex); // Espera o Yoda liberar a entrada
+	}
+
+	pthread_cond_signal(&condEspectador);
+	espectadoresNoSalao.push_back(id);
+	std::cout << "Espectador_" << id << " entrou no salao" << std::endl;
+	pthread_mutex_unlock(&mutex);
+}
+
+void saiSalaoEspectador(int id)
+{
+
+	std::cout << "Espectador_" << id << " se entediou e resolve sair do salao" << std::endl;
+	
+	espectadoresNoSalao.remove(id);
+
+	totalEspectadores--; // essa porra nem existe lolololololololoololl
+
+	if (espectadoresNoSalao.size() == 0 && padawansNoSalao.size() == 0)
+	{
+		// acorda yoda para poder finalizar os testes
+		pthread_cond_signal(&condYoda);
+	}
+	
+}
+
+void assiste_testes(int id)
+{
+	pthread_cond_wait(&condEspectadorSalao, &mutex);
+	int tempo = rand() % 10 + 1;
+	std::cout << "Espectador_" << id << " está assistindo os testes" << std::endl;
+	pthread_cond_signal(&condEspectadorSalao);
+	pthread_mutex_unlock(&mutex);
+	sleep(tempo);
+
+}
+
 void *espectadorThread(void *arg)
 {
 	int id = *(int *)arg;
 	delete (int *)arg;
 
+	entraSalaoEspectador(id);
+	assiste_testes(id);
+	saiSalaoEspectador(id);
+
 	pthread_exit(NULL);
+
 }
 
 int main(int argc, char **argv)
@@ -429,17 +481,19 @@ int main(int argc, char **argv)
 
 	std::cout << "Digite o numero de padawans: ";
 	std::cin >> numPadawans;
-	// std::cout << "Digite o numero de espectadores: ";
-	// std::cin >> numEspectadores;
+	std::cout << "Digite o numero de espectadores: ";
+	std::cin >> numEspectadores;
 	totalPadawans = numPadawans;
+	totalEspectadores = numEspectadores;
 	pthread_t padawans[numPadawans];
-	// pthread_t espectadores[numEspectadores];
+	pthread_t espectadores[numEspectadores];
 
 	pthread_mutex_init(&mutex, NULL);
 	pthread_cond_init(&condPadawan, NULL);
 	pthread_cond_init(&condPadawanSalao, NULL);
 	pthread_cond_init(&condTeste, NULL);
 	pthread_cond_init(&condEspectador, NULL);
+	pthread_cond_init(&condEspectadorSalao, NULL);
 	pthread_cond_init(&condYoda, NULL);
 	pthread_cond_init(&condCortaTranca, NULL);
 
@@ -450,11 +504,11 @@ int main(int argc, char **argv)
 		pthread_create(&padawans[i], NULL, padawanThread, (void *)id);
 	}
 
-	// for(int i = 0; i < numEspectadores; i++) {
-	// 	int id = i;
-	// 	std::cout << "Espectador_" << id << " foi criado" << std::endl;
-	// 	pthread_create(&espectadores[i], NULL, espectadorThread, (void *)id);
-	// }
+	for(int i = 0; i < numEspectadores; i++) {
+		int *id = new int(i);
+		std::cout << "Espectador_" << id << " foi criado" << std::endl;
+		pthread_create(&espectadores[i], NULL, espectadorThread, (void *)id);
+	}
 
 	pthread_create(&yoda, NULL, yodaThread, NULL);
 
@@ -463,9 +517,9 @@ int main(int argc, char **argv)
 		pthread_join(padawans[i], NULL);
 	}
 
-	// for(int i = 0; i < numEspectadores; i++) {
-	// 	pthread_join(espectadores[i], NULL);
-	// }
+	for(int i = 0; i < numEspectadores; i++) {
+		pthread_join(espectadores[i], NULL);
+	}
 
 	pthread_join(yoda, NULL);
 
@@ -474,6 +528,7 @@ int main(int argc, char **argv)
 	pthread_cond_destroy(&condPadawanSalao);
 	pthread_cond_destroy(&condTeste);
 	pthread_cond_destroy(&condEspectador);
+	pthread_cond_destroy(&condEspectadorSalao);
 	pthread_cond_destroy(&condYoda);
 	pthread_cond_destroy(&condCortaTranca);
 
