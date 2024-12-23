@@ -1,3 +1,9 @@
+/*
+ * FUNCIONALIDADE: Implementação de um sistema de avaliação de Padawans gerenciado por Yoda.
+ * AUTORES: Natanael Aparecido Tagliaferro Galafassi, Alyson Gonçalves Jorge, Hudson Taylor Perrut Cassim.
+ * DATA: 20/12/2024
+ */
+
 #include <iostream>
 #include <unistd.h>
 #include <semaphore.h>
