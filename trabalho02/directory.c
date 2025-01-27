@@ -25,16 +25,52 @@ typedef struct {
     uint32_t size;         // Tamanho do arquivo (0 para diretórios)
 } DirectoryEntry;
 
+#pragma pack(push, 1)
 typedef struct {
-    uint8_t order;          // Ordem da entrada LFN
-    uint16_t name1[5];      // Primeiros 5 caracteres do nome
-    uint8_t attr;           // Atributo (0x0F para LFN)
-    uint8_t type;           // Tipo (sempre 0)
-    uint8_t checksum;       // Checksum associado à entrada principal
-    uint16_t name2[6];      // Próximos 6 caracteres do nome
-    uint16_t first_cluster; // Sempre 0 para entradas LFN
-    uint16_t name3[2];      // Últimos 2 caracteres do nome
+    uint8_t order;
+    uint16_t name1[5];
+    uint8_t attr;
+    uint8_t type;
+    uint8_t checksum;
+    uint16_t name2[6];
+    uint16_t first_cluster;
+    uint16_t name3[2];
 } LFNEntry;
+#pragma pack(pop)
+
+
+#include <stdio.h>
+#include <stdint.h>
+
+void print_lfn_entry_hex(const LFNEntry *entry) {
+    printf("LFN Entry:\n");
+    printf("Order: 0x%02X\n", entry->order);
+
+    printf("Name1: ");
+    for (int i = 0; i < 5; i++) {
+        printf("0x%04X ", entry->name1[i]);
+    }
+    printf("\n");
+
+    printf("Attribute: 0x%02X\n", entry->attr);
+    printf("Type: 0x%02X\n", entry->type);
+    printf("Checksum: 0x%02X\n", entry->checksum);
+
+    printf("Name2: ");
+    for (int i = 0; i < 6; i++) {
+        printf("0x%04X ", entry->name2[i]);
+    }
+    printf("\n");
+
+    printf("First Cluster: 0x%04X\n", entry->first_cluster);
+
+    printf("Name3: ");
+    for (int i = 0; i < 2; i++) {
+        printf("0x%04X ", entry->name3[i]);
+    }
+    printf("\n");
+}
+
 
 
 void extract_lfn_characters(LFNEntry *lfn_entry, char *long_name, int *index) {
@@ -62,11 +98,23 @@ void reconstruct_long_name(char *long_name, LFNEntry *lfn_entries, int total_ent
     long_name[0] = '\0'; // Inicializa a string
 
     for (int i = total_entries - 1; i >= 0; i--) {
+        //print_lfn_entry_hex(&lfn_entries[i]);
         extract_lfn_characters(&lfn_entries[i], long_name, &index);
     }
     long_name[index] = '\0'; // Finaliza a string
 }
 
+void print_hex(const uint8_t *data, size_t size) {
+    for (size_t i = 0; i < size; i++) {
+        printf("%02X ", data[i]);
+        if ((i + 1) % 16 == 0) { // Quebra de linha a cada 16 bytes
+            printf("\n");
+        }
+    }
+    if (size % 16 != 0) { // Quebra de linha no final, se necessário
+        printf("\n");
+    }
+}
 
 
 
@@ -84,6 +132,12 @@ void read_directory(FILE *image, uint32_t root_cluster, uint32_t bytes_per_secto
         fread(buffer, cluster_size, 1, image);
 
         for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
+             uint8_t *entry_bytes = buffer + i;
+
+            // Exibe a entrada em formato hexadecimal
+           // printf("Entrada de 32 bytes em hexadecimal:\n");
+           // print_hex(entry_bytes, sizeof(DirectoryEntry));
+            //printf("\n");
             DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
 
             if (entry->name[0] == 0x00) // Entrada vazia
@@ -92,7 +146,8 @@ void read_directory(FILE *image, uint32_t root_cluster, uint32_t bytes_per_secto
             if (entry->name[0] == 0xE5) // Entrada deletada
                 continue;
             if (entry->attr == 0x0F) { // Verifica se é uma entrada LFN
-                LFNEntry *lfn_entry = (LFNEntry *)entry;
+                LFNEntry *lfn_entry = (LFNEntry *)(entry_bytes);
+               //printf("Name1[0]-> %04X -- SIZE: %ld\n",lfn_entry->name1[0], sizeof(LFNEntry));
                 if ((lfn_entry->order & 0x40) != 0) { // Primeira entrada de uma sequência LFN
                     lfn_index = 0; // Reinicia o buffer
                 }
