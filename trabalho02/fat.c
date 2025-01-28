@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-
-#include "bootsector.c"
+#include "./headers/fat.h"
+#include "./headers/bootsector.h"
 
 // Função para ler a FAT
 uint32_t *read_fat(FILE *file, const BootSector *bs) {

@@ -3,9 +3,10 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "fat.c"
-#include "directory.c"
-#include "shell.c"
+#include "./headers/fat.h"
+#include "./headers/directory.h"
+#include "./headers/bootsector.h"
+#include "./headers/shell.h"
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -64,7 +65,7 @@ int main(int argc, char *argv[]) {
         command[strcspn(command, "\n")] = '\0';
 
         // Processa o comando
-        process_command(command, "");
+        process_command(command, "", bs, file);
     }
 
 
