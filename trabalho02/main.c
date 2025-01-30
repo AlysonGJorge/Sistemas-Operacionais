@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
      // Listar o diretório raiz
     printf("Listando o diretório raiz:\n");
     uint32_t fat_offset = bs.reserved_sectors * bs.bytes_per_sector;
-    uint32_t data_offset = fat_offset + (bs.num_fats * bs.fat_size_32 * bs.bytes_per_sector);
+    uint32_t data_offset = fat_offset + (bs.num_fats * (bs.fat_size_32 * bs.bytes_per_sector));
     printf("FAT Offset: %u, Data Offset: %u\n", fat_offset, data_offset);
     printf("Bytes por Setor: %u, Setores por Cluster: %u\n", bs.bytes_per_sector, bs.sectors_per_cluster);
 

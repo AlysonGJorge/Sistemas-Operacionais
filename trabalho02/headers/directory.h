@@ -9,33 +9,32 @@
 #include <ctype.h>
 
 // Estrutura para uma entrada de diretório
-#pragma pack(push, 1)
-typedef struct {
-    char name[11];         // Nome do arquivo/diretório (8.3 format)
-    uint8_t attr;          // Atributos
-    uint8_t reserved[10];  // Reservado
-    uint16_t time;         // Hora de criação
-    uint16_t date;         // Data de criação
-    uint16_t start_high;   // Cluster inicial (parte alta)
-    uint16_t time_mod;     // Hora de modificação
-    uint16_t date_mod;     // Data de modificação
-    uint16_t start_low;    // Cluster inicial (parte baixa)
-    uint32_t size;         // Tamanho do arquivo (0 para diretórios)
+typedef struct __attribute__((packed)) {
+    uint8_t name[8];
+    uint8_t ext[3];
+    uint8_t attr;
+    uint8_t ntres;
+    uint8_t crt_time_tenth;
+    uint16_t crt_time;
+    uint16_t crt_date;
+    uint16_t lst_acc_date;
+    uint16_t start_high;
+    uint16_t wrt_time;
+    uint16_t wrt_date;
+    uint16_t start_low;
+    uint32_t size;
 } DirectoryEntry;
-#pragma pack(pop)
 
-#pragma pack(push, 1)
-typedef struct {
-    uint8_t order;          // Ordem da entrada LFN
-    uint16_t name1[5];      // Primeiros 5 caracteres do nome
-    uint8_t attr;           // Atributo (0x0F para LFN)
-    uint8_t type;           // Tipo (sempre 0)
-    uint8_t checksum;       // Checksum associado à entrada principal
-    uint16_t name2[6];      // Próximos 6 caracteres do nome
-    uint16_t first_cluster; // Sempre 0 para entradas LFN
-    uint16_t name3[2];      // Últimos 2 caracteres do nome
+typedef struct __attribute__((packed)) {
+    uint8_t order;
+    uint16_t name1[5];
+    uint8_t attr;
+    uint8_t type;
+    uint8_t checksum;
+    uint16_t name2[6];
+    uint16_t zero;
+    uint16_t name3[2];
 } LFNEntry;
-#pragma pack(pop)
 
 void read_directory(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset);
 

@@ -52,15 +52,21 @@ void read_directory(FILE *image, uint32_t root_cluster, uint32_t bytes_per_secto
         fread(buffer, cluster_size, 1, image);
 
         for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
+             uint8_t *entry_bytes = buffer + i;
+            
+            // Exibe a entrada em formato hexadecimal
+           // printf("Entrada de 32 bytes em hexadecimal:\n");
+           // print_hex(entry_bytes, sizeof(DirectoryEntry));
+            //printf("\n");
             DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
-
             if (entry->name[0] == 0x00) // Entrada vazia
                 break;
 
             if (entry->name[0] == 0xE5) // Entrada deletada
                 continue;
             if (entry->attr == 0x0F) { // Verifica se é uma entrada LFN
-                LFNEntry *lfn_entry = (LFNEntry *)entry;
+                LFNEntry *lfn_entry = (LFNEntry *)(entry_bytes);
+               //printf("Name1[0]-> %04X -- SIZE: %ld\n",lfn_entry->name1[0], sizeof(LFNEntry));
                 if ((lfn_entry->order & 0x40) != 0) { // Primeira entrada de uma sequência LFN
                     lfn_index = 0; // Reinicia o buffer
                 }
@@ -96,7 +102,6 @@ void read_directory(FILE *image, uint32_t root_cluster, uint32_t bytes_per_secto
         fread(&cluster, sizeof(uint32_t), 1, image);
         cluster &= 0x0FFFFFFF;
     }
-
 }
 
 void format_to_83_name(const char *name, uint8_t *dest){
@@ -164,7 +169,6 @@ int create_directory(FILE *image, uint32_t parent_cluster, char* directory_name,
             printf("Entry #%ld: %02X (decimal: %d)\n", i / sizeof(DirectoryEntry), (uint8_t)entry->name[0], (uint8_t)entry->name[0]);
 
             if ((uint8_t)entry->name[0] == 0x00 || (uint8_t)entry->name[0] == 0xE5) {
-                printf("Achei uma entrada vazia ou apagada\n");
                 found = 1;
                 break;
             }
@@ -179,7 +183,6 @@ int create_directory(FILE *image, uint32_t parent_cluster, char* directory_name,
     }
 
     if (!found) {
-        printf("Num achei\n");
         free(buffer);
         return -1;
     }

@@ -34,7 +34,7 @@ void print_bootsector_info(const BootSector *bs) {
     printf("Number of FATs: %u\n", bs->num_fats);
     printf("Total Sectors (16-bit): %u\n", bs->total_sectors_16);
     printf("Total Sectors (32-bit): %u\n", bs->total_sectors_32);
-    printf("FAT Size (32-bit): %u\n", bs->fat_size_32);
+    printf("FAT Size (32-bit): %u\n", bs->fat_size_32 * bs->bytes_per_sector);
     printf("Root Cluster: %u\n", bs->root_cluster);
     printf("Volume Label: %.11s\n", bs->volume_label);
     printf("File System Type: %.8s\n", bs->fs_type);
