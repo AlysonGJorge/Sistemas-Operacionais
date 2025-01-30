@@ -128,7 +128,7 @@ uint32_t find_free_cluster(FILE *image, uint32_t fat_offset, uint32_t total_clus
 }
 
 
-int create_directory(FILE *image, uint32_t parent_cluster,char* directory_name, uint32_t bytes_per_sector, 
+int create_directory(FILE *image, uint32_t parent_cluster, char* directory_name, uint32_t bytes_per_sector, 
     uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, uint32_t total_clusters) {
 
     uint32_t cluster_size = bytes_per_sector * sectors_per_cluster;
@@ -139,6 +139,7 @@ int create_directory(FILE *image, uint32_t parent_cluster,char* directory_name, 
     uint32_t current_cluster = parent_cluster;
 
     while (current_cluster < EOC && !found) {
+        printf("current_cluster - 2: %u\n", current_cluster - 2);
         cluster_address = data_offset + (current_cluster - 2) * cluster_size;
         printf("Cluster address: %u\n", cluster_address);
 

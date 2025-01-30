@@ -9,6 +9,7 @@
 #include <ctype.h>
 
 // Estrutura para uma entrada de diretório
+#pragma pack(push, 1)
 typedef struct {
     char name[11];         // Nome do arquivo/diretório (8.3 format)
     uint8_t attr;          // Atributos
@@ -21,7 +22,9 @@ typedef struct {
     uint16_t start_low;    // Cluster inicial (parte baixa)
     uint32_t size;         // Tamanho do arquivo (0 para diretórios)
 } DirectoryEntry;
+#pragma pack(pop)
 
+#pragma pack(push, 1)
 typedef struct {
     uint8_t order;          // Ordem da entrada LFN
     uint16_t name1[5];      // Primeiros 5 caracteres do nome
@@ -32,7 +35,7 @@ typedef struct {
     uint16_t first_cluster; // Sempre 0 para entradas LFN
     uint16_t name3[2];      // Últimos 2 caracteres do nome
 } LFNEntry;
-
+#pragma pack(pop)
 
 void read_directory(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset);
 

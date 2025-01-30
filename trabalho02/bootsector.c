@@ -8,7 +8,7 @@
 
 // Função para ler o Bootsector
 int read_bootsector(const char *filename, BootSector *bs) {
-    FILE *file = fopen(filename, "rb");  // Abrir arquivo em modo de leitura binária
+    FILE *file = fopen(filename, "r+b");  // Abrir arquivo em modo de leitura binária
     if (!file) {
         perror("Erro ao abrir a imagem");
         return -1;

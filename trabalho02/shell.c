@@ -43,7 +43,7 @@ void process_command(char *command, const char *image_path, const BootSector bs,
         }
         // Cria um novo diretório
         // TODO: Implementar verificação para caracteres inválidos.
-
+        printf("root_cluster: %d\n", bs.root_cluster);
         uint32_t fat_offset = bs.reserved_sectors * bs.bytes_per_sector;
         uint32_t data_offset = fat_offset + (bs.num_fats * bs.fat_size_32 * bs.bytes_per_sector);
         uint32_t total_clusters = (bs.total_sectors_32 - (data_offset / bs.bytes_per_sector)) / bs.sectors_per_cluster;
