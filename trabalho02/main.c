@@ -4,8 +4,10 @@
 #include <string.h>
 
 #include "fat.c"
+//#include "bootsector.c"
 #include "directory.c"
 #include "shell.c"
+
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -28,8 +30,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    printf("Informações do Bootsector:\n");
-    print_bootsector_info(&bs);
+    //printf("Informações do Bootsector:\n");
+    //print_bootsector_info(&bs);
 
     // Ler a FAT
     uint32_t *fat = read_fat(file, &bs);
@@ -39,9 +41,9 @@ int main(int argc, char *argv[]) {
     }
 
     // Exibir algumas entradas da FAT
-    uint32_t num_clusters = (bs.total_sectors_32 - bs.reserved_sectors) / bs.sectors_per_cluster;
-    print_fat(fat, num_clusters, 0, 20);
-     printf("Setor booot %u\n", bs.root_cluster);
+    //uint32_t num_clusters = (bs.total_sectors_32 - bs.reserved_sectors) / bs.sectors_per_cluster;
+    //print_fat(fat, num_clusters, 0, 20);
+   //  printf("Setor booot %u\n", bs.root_cluster);
 
      // Listar o diretório raiz
     printf("Listando o diretório raiz:\n");
@@ -64,7 +66,7 @@ int main(int argc, char *argv[]) {
         command[strcspn(command, "\n")] = '\0';
 
         // Processa o comando
-        process_command(command, "");
+        process_command(command, file, &bs, fat, "");
     }
 
 

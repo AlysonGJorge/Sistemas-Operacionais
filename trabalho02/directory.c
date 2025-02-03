@@ -39,8 +39,6 @@ typedef struct {
 #pragma pack(pop)
 
 
-#include <stdio.h>
-#include <stdint.h>
 
 void print_lfn_entry_hex(const LFNEntry *entry) {
     printf("LFN Entry:\n");
@@ -184,5 +182,18 @@ void read_directory(FILE *image, uint32_t root_cluster, uint32_t bytes_per_secto
         cluster &= 0x0FFFFFFF;
     }
 }
+
+// Função para exibir atributos
+void display_attributes(uint8_t attributes) {
+    printf("Atributos: ");
+    if (attributes & 0x01) printf("Somente Leitura ");
+    if (attributes & 0x02) printf("Oculto ");
+    if (attributes & 0x04) printf("Sistema ");
+    if (attributes & 0x08) printf("Volume Label ");
+    if (attributes & 0x10) printf("Diretório ");
+    if (attributes & 0x20) printf("Arquivo Arquivável ");
+    printf("\n");
+}
+
 
 
