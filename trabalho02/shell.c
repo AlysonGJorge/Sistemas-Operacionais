@@ -4,48 +4,6 @@
 #include <string.h>
 
 #include "comandos.c"
-/*void display_cluster_content(FILE *image, const BootSector *bs, uint32_t cluster_num) {
-    DiskInfo info;
-    gather_disk_info(image, bs, &info);
-
-    if (cluster_num < 2 || cluster_num >= info.total_clusters + 2) {
-        printf("Cluster inválido: %u. Os clusters válidos estão entre 2 e %u.\n",
-               cluster_num, info.total_clusters + 1);
-        return;
-    }
-
-    // Calcula o offset do cluster na Data Region
-    uint32_t cluster_offset = info.data_offset + 
-                              (cluster_num - 2) * bs->sectors_per_cluster * bs->bytes_per_sector;
-
-    fseek(image, cluster_offset, SEEK_SET);
-
-    // Lê o conteúdo do cluster
-    uint8_t *buffer = malloc(info.cluster_size_bytes);
-    if (!buffer) {
-        perror("Erro ao alocar memória para o buffer");
-        return;
-    }
-
-    if (fread(buffer, 1, info.cluster_size_bytes, image) != info.cluster_size_bytes) {
-        perror("Erro ao ler o cluster");
-        free(buffer);
-        return;
-    }
-
-    printf("===== Conteúdo do Cluster %u =====\n", cluster_num);
-    for (uint32_t i = 0; i < info.cluster_size_bytes; i++) {
-        if (buffer[i] == '\0') {
-            // Exibe espaços para bytes nulos
-            putchar('.');
-        } else {
-            putchar(buffer[i]);
-        }
-    }
-    putchar('\n');
-
-    free(buffer);
-}*/
 
 
 
@@ -94,6 +52,12 @@ void process_command(char *command, FILE *file, const BootSector *bs, uint32_t *
         }
     } else if (strcmp(args[0], "pwd") == 0) {
         pwd(current_path);
+    } else if (strcmp(args[0], "touch") == 0) {
+        if (arg_count > 1) {
+            touch(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1]);
+        } else {
+            printf("Uso: touch NomeArquivo\n");
+        }
     } else if (strcmp(args[0], "exit") == 0) {
         printf("Saindo...\n");
         exit(0);

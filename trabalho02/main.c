@@ -41,9 +41,9 @@ int main(int argc, char *argv[]) {
     }
 
     // Exibir algumas entradas da FAT
-    //uint32_t num_clusters = (bs.total_sectors_32 - bs.reserved_sectors) / bs.sectors_per_cluster;
-    //print_fat(fat, num_clusters, 0, 20);
-   //  printf("Setor booot %u\n", bs.root_cluster);
+    uint32_t num_clusters = (bs.total_sectors_32 - bs.reserved_sectors) / bs.sectors_per_cluster;
+    print_fat(fat, num_clusters, 0, 20);
+   //printf("Setor booot %u\n", bs.root_cluster);
 
      // Listar o diretório raiz
     printf("Listando o diretório raiz:\n");
