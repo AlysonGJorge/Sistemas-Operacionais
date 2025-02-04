@@ -48,10 +48,9 @@
 }*/
 
 
-uint32_t current_cluster = 2; // Cluster 2 é geralmente o root.
-char current_path[256]  = {'/'}; // Cluster 2 é geralmente o root.
 
-void process_command(char *command, FILE *file, const BootSector *bs, uint32_t *fat, const char *image_path) {
+
+void process_command(char *command, FILE *file, const BootSector *bs, uint32_t *fat, const char *image_path, uint32_t *current_cluster, char * current_path, char * last_path) {
     char *args[10];
     int arg_count = 0;
 
@@ -70,15 +69,17 @@ void process_command(char *command, FILE *file, const BootSector *bs, uint32_t *
 
     if (strcmp(args[0], "attr") == 0) {
         if (arg_count > 1) {
-            attr(file, current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1]);
+            attr(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1]);
         } else {
             printf("Uso: attr <file | dir>\n");
         }
     }else if (strcmp(args[0], "ls") == 0) {
-        ls(file, current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset );
+        ls(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset );
     } else if (strcmp(args[0], "cd") == 0) {
         if (arg_count > 1) {
-            cd(file, current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1]);
+            cd(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1], current_cluster, current_path, last_path);
+            printf("current_cluster : %d\n",  (int) *current_cluster);
+            printf("current_cluster_path : %s\n", current_path);
         } else {
             printf("Uso: cd <diretorio>\n");
         }

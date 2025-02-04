@@ -56,8 +56,11 @@ int main(int argc, char *argv[]) {
 
     char command[256];
      printf("\n\n");
+     uint32_t current_cluster = 2; // Cluster 2 é geralmente o root.
+     char current_path[256]  = {'/'}; // Cluster 2 é geralmente o root.
+     char last_path[256]  = {' '}; // Cluster 2 é geralmente o root.
     while (1) {
-        printf("fatshell:[img/] $ ");
+        printf("fatshell:[img%s]$ ", current_path);
         if (fgets(command, sizeof(command), stdin) == NULL) {
             break; // EOF ou erro
         }
@@ -66,7 +69,7 @@ int main(int argc, char *argv[]) {
         command[strcspn(command, "\n")] = '\0';
 
         // Processa o comando
-        process_command(command, file, &bs, fat, "");
+        process_command(command, file, &bs, fat, "", &current_cluster, current_path, last_path);
     }
 
 

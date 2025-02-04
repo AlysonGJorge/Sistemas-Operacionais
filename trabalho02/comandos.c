@@ -312,7 +312,95 @@ void ls(FILE *image, uint32_t cluster_path, uint32_t bytes_per_sector, uint32_t 
 
 //-----------------------------------------------------------------------------------------------------//
 /*cd*/
+void mudaDiretorio(DirectoryEntry *entry){
 
+
+
+
+}
+
+
+
+void cd(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, char * nmArquivo, uint32_t * current_cluster, char * current_path, char * last_path){
+    uint32_t cluster = root_cluster;
+    uint32_t cluster_size = bytes_per_sector * sectors_per_cluster;
+    uint8_t buffer[SECTOR_SIZE];
+
+    LFNEntry lfn_buffer[20];
+    int lfn_index = 0;
+    while (cluster < 0x0FFFFFF8) { // Clusters válidos no FAT32
+        uint32_t cluster_address = data_offset + (cluster - 2) * cluster_size;
+        fseek(image, cluster_address, SEEK_SET);
+        fread(buffer, cluster_size, 1, image);
+
+        for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
+             uint8_t *entry_bytes = buffer + i;
+
+            DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
+
+            if (entry->name[0] == 0x00) // Entrada vazia
+                break;
+
+            if (entry->name[0] == 0xE5) // Entrada deletada
+                continue;
+            if (entry->attr == 0x0F) { // Verifica se é uma entrada LFN
+                LFNEntry *lfn_entry = (LFNEntry *)(entry_bytes);
+                if ((lfn_entry->order & 0x40) != 0) { // Primeira entrada de uma sequência LFN
+                    lfn_index = 0; // Reinicia o buffer
+                }
+                lfn_buffer[lfn_index++] = *lfn_entry;
+            } else {
+                // Reconstrói o nome longo se existirem entradas LFN
+                char long_name[256] = {0};
+                if (lfn_index > 0) {
+                    
+                    reconstruct_long_name(long_name, lfn_buffer, lfn_index);
+                    lfn_index = 0; // Limpa o índice
+                    if(!strcmp(long_name, nmArquivo)){
+                        if(entry->attr & ATTR_DIRECTORY){
+                            *current_cluster = (entry->start_high << 16) | entry->start_low;
+                            strcpy(last_path, current_path);
+                            strcat(current_path, long_name);
+                            strcat(current_path, "/");
+                            //print_attributes(entry, long_name);
+                        }else
+                            printf ("Não é um diretório \n");
+                        return;
+                    }
+                }else{
+                    strcpy(entry->name, strtok(entry->name," "));
+                   printf("Entrou aqui: %s ----- %s \n", entry->name,nmArquivo );
+                    if(!strcmp(entry->name, nmArquivo)){
+                         printf("Entrou aqui: %s \n", entry->name);
+                        if(entry->attr & ATTR_DIRECTORY){
+                            if(!strcmp(entry->name, "..")){
+                                *current_cluster = (entry->start_high << 16) | entry->start_low;
+                                if((int) *current_cluster == 0) *current_cluster = 2;
+                                //strcat(current_path, "/");
+                                strcpy(current_path, last_path);
+                                 return;
+                            }else{
+                                *current_cluster = (entry->start_high << 16) | entry->start_low;
+                                strcat(current_path, long_name);
+                                strcat(current_path, "/");
+                                 return;      
+                            }
+                            //print_attributes(entry, long_name);
+                        }else
+                            printf ("Não é um diretório \n");
+                        return;
+                    }
+                }
+            }
+        }
+        // Avança para o próximo cluster (usando a FAT)
+        uint32_t fat_entry_address = fat_offset + cluster * 4;
+        fseek(image, fat_entry_address, SEEK_SET);
+        fread(&cluster, sizeof(uint32_t), 1, image);
+        cluster &= 0x0FFFFFFF;
+    }
+    printf ("Arquivo %s não Encontrado\n", nmArquivo);
+}
 
 
 
