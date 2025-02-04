@@ -1,12 +1,5 @@
 // Variável global para o diretório atual (inicia no cluster do root)
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
-
-#include "comandos.c"
-
-
-
+#include "shell.h"
 
 void process_command(char *command, FILE *file, const BootSector *bs, uint32_t *fat, const char *image_path, uint32_t *current_cluster, char * current_path, char * last_path) {
     char *args[10];

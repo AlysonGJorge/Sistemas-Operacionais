@@ -1,22 +1,7 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
-#include <time.h>
+#include "comandos.h"
 
 //-----------------------------------------------------------------------------------------------------//
 /*Info*/
-typedef struct {
-    uint32_t total_sectors;
-    uint32_t fat_size_sectors;
-    uint32_t cluster_size_bytes;
-    uint32_t root_cluster;
-    uint32_t fat_offset;
-    uint32_t data_offset;
-    uint32_t total_clusters;
-    uint32_t free_clusters;
-    uint32_t reserved_clusters;
-    uint32_t used_clusters;
-} DiskInfo;
 
 void gather_disk_info(FILE *image, const BootSector *bs, DiskInfo *info) {
     info->total_sectors = bs->total_sectors_32 ? bs->total_sectors_32 : bs->total_sectors_16;
@@ -514,6 +499,8 @@ void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
     }
 
     /// gerar o SFN
+    DirectoryEntry sfn;
+    
 
     /// Gerar Chechsum
 

@@ -1,42 +1,5 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h> // Para memcpy
-#include <wchar.h>  // Para wchar_t e funções relacionadas
+#include "directory.h" // Para wchar_t e funções relacionadas
 
-
-#define SECTOR_SIZE 512 // Tamanho do setor
-//#define DIR_ENTRY_SIZE 32 // Tamanho da entrada de diretório
-#define ATTR_DIRECTORY 0x10 // Atributo para diretório
-
-// Estrutura para uma entrada de diretório
-typedef struct {
-    char name[11];         // Nome do arquivo/diretório (8.3 format)
-    uint8_t attr;          // Atributos
-    uint8_t reserved;      // Reservado
-    uint8_t createTimeTenth;
-    uint16_t time;         // Hora de criação
-    uint16_t date;         // Data de criação
-    uint16_t accessDate;
-    uint16_t start_high;   // Cluster inicial (parte alta)
-    uint16_t time_mod;     // Hora de modificação
-    uint16_t date_mod;     // Data de modificação
-    uint16_t start_low;    // Cluster inicial (parte baixa)
-    uint32_t size;         // Tamanho do arquivo (0 para diretórios)
-} DirectoryEntry;
-
-#pragma pack(push, 1)
-typedef struct {
-    uint8_t order;
-    uint16_t name1[5];
-    uint8_t attr;
-    uint8_t type;
-    uint8_t checksum;
-    uint16_t name2[6];
-    uint16_t first_cluster;
-    uint16_t name3[2];
-} LFNEntry;
-#pragma pack(pop)
 
 
 

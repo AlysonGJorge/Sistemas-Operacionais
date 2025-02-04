@@ -3,10 +3,10 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "fat.c"
-//#include "bootsector.c"
-#include "directory.c"
-#include "shell.c"
+#include "fat.h"
+#include "bootsector.h"
+#include "directory.h"
+#include "shell.h"
 
 
 int main(int argc, char *argv[]) {
