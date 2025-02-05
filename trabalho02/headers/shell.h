@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void process_command(char *command, const char *image_path, const BootSector bs, FILE *file);
+void process_command(char *command, const char *image_path, const BootSector *bs, FILE *file, uint32_t *fat);
 
 
 

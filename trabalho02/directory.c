@@ -1,10 +1,13 @@
 #include "./headers/directory.h"
 #include "./headers/coversion.h"
+#include "directory.h"
 
 #define SECTOR_SIZE 512 // Tamanho do setor
 #define DIR_ENTRY_SIZE 32 // Tamanho da entrada de diretório
 #define ATTR_DIRECTORY 0x10 // Atributo para diretório
 #define EOC 0x0FFFFFF8
+#define LFN 0x0F // Atributo para entrada LFN
+#define DELETED 0xE5 // Entrada deletada
 
 
 void extract_lfn_characters(LFNEntry *lfn_entry, char *long_name, int *index) {
@@ -132,6 +135,29 @@ uint32_t find_free_cluster(FILE *image, uint32_t fat_offset, uint32_t total_clus
     return 0;
 }
 
+void free_clusters(FILE *image, uint32_t start_cluster, uint32_t fat_offset){
+    uint32_t current_cluster = start_cluster;
+    uint32_t next_cluster;
+
+    while (1) {
+        if (current_cluster < 2 || current_cluster >= 0x0FFFFFF0) {
+            break;
+        }
+
+        fseek(image, fat_offset + current_cluster * 4, SEEK_SET);
+        fread(&next_cluster, sizeof(uint32_t), 1, image);
+        next_cluster = le32toh(next_cluster) & 0x0FFFFFFF;
+
+        uint32_t free_entry = 0x000000000;
+        fseek(image, fat_offset + current_cluster * 4, SEEK_SET);
+        fwrite(&free_entry, sizeof(uint32_t), 1, image);
+
+        current_cluster  = next_cluster;
+
+        if (current_cluster >= EOC)
+            break;
+    }
+}
 
 int create_directory(FILE *image, uint32_t parent_cluster, char* directory_name, uint32_t bytes_per_sector, 
     uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, uint32_t total_clusters) {
@@ -144,9 +170,7 @@ int create_directory(FILE *image, uint32_t parent_cluster, char* directory_name,
     uint32_t current_cluster = parent_cluster;
 
     while (current_cluster < EOC && !found) {
-        printf("current_cluster - 2: %u\n", current_cluster - 2);
         cluster_address = data_offset + (current_cluster - 2) * cluster_size;
-        printf("Cluster address: %u\n", cluster_address);
 
         if (fseek(image, cluster_address, SEEK_SET) != 0) {
             perror("Erro ao posicionar ponteiro para o cluster");
@@ -231,4 +255,106 @@ int create_directory(FILE *image, uint32_t parent_cluster, char* directory_name,
     free(buffer);
     free(new_dir_buffer);
     return 0;
-} 
+}
+
+int remove_file(FILE *image, uint32_t parent_cluster, char *file_name, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, uint32_t total_clusters) {   
+    uint32_t cluster_size = bytes_per_sector * sectors_per_cluster;
+    uint8_t *buffer = malloc(cluster_size);
+    DirectoryEntry *entry = NULL;
+    uint32_t current_cluster = parent_cluster;
+    int found = 0;
+    uint32_t cluster_address;
+    uint8_t lfn_checksum = 0;
+    LFNEntry *lfn_entries[20];
+    int lfn_count = 0;
+
+    while(current_cluster >= 2 && current_cluster < EOC && !found) {
+        cluster_address = data_offset + (current_cluster - 2) * cluster_size;
+
+        if (current_cluster < 2 || current_cluster >= total_clusters) {
+            break;
+        }
+
+        if (fseek(image, cluster_address, SEEK_SET) != 0) {
+            perror("Erro ao posicionar ponteiro para o cluster");
+            free(buffer);
+            return -1;
+        }
+
+        size_t bytes_read = fread(buffer, 1, cluster_size, image);
+        printf("Bytes lidos: %lu\n", bytes_read);
+        if (bytes_read != cluster_size) {
+            perror("Erro ao ler o diretório");
+            free(buffer);
+            return -1;
+        }
+
+        for(int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
+            entry = (DirectoryEntry *) (buffer + i);
+
+            if (entry->name[0] == 0x00) break;
+            if(entry->name[0] == 0xE5) continue;
+
+
+            if  (entry->attr & LFN)  {
+                LFNEntry *lfn_entry = (LFNEntry *)entry;
+                lfn_entries[lfn_count++] = lfn_entry;
+                continue;
+            } 
+            
+            if (!(entry->attr & ATTR_DIRECTORY)) {
+                char long_name[256] = {0};
+                char short_name[12] = {0};
+
+                uint8_t checksum; 
+                if(lfn_count > 0 && lfn_checksum != checksum) {
+                    lfn_count = 0;
+                }
+
+                
+                if(lfn_count > 0) {
+                    reconstruct_long_name(long_name, *lfn_entries, lfn_count);
+                } else {
+                    format_to_83_name(file_name, (uint8_t *)short_name);
+                }
+
+                if (strcmp(long_name, file_name) == 0 || strcmp(short_name, file_name) == 0) {
+
+                    entry->name[0] = DELETED;
+                    for (int j = 0; j < lfn_count; j++) {
+                        lfn_entries[j]->order = DELETED;
+                    }
+
+                    fseek(image, cluster_address, SEEK_SET);
+                    fwrite(buffer, cluster_size, 1, image);
+
+                    uint32_t start_cluster = (le16toh(entry->start_high) << 16) | le16toh(entry->start_low);
+                    free_clusters(image, start_cluster, fat_offset);
+                    found = 1;
+                    break;
+                } 
+                lfn_count = 0;
+            }
+            
+        }
+
+        if (!found) {
+            uint32_t next_cluster;
+            fseek(image, fat_offset + current_cluster * 4, SEEK_SET);
+            fread(&next_cluster, 4, 1, image);
+            next_cluster = le32toh(next_cluster) & 0x0FFFFFFF;
+
+            if (next_cluster >= EOC || next_cluster >= total_clusters) {
+                break;
+            }
+
+            current_cluster = next_cluster;
+        }
+        
+    }
+
+    
+    free(buffer);
+
+    return found ? 0 : -1;
+}

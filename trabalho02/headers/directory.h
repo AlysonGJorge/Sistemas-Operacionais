@@ -46,6 +46,10 @@ void format_to_83_name(const char *name, uint8_t *dest);
 
 uint32_t find_free_cluster(FILE *image, uint32_t fat_offset, uint32_t total_clusters);
 
+void free_clusters(FILE *image, uint32_t start_cluster, uint32_t fat_offset);
+
 int create_directory(FILE *image, uint32_t parent_cluster,char *directory_name, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, uint32_t total_clusters);
+
+int remove_file(FILE *image, uint32_t parent_cluster, char *file_name, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, uint32_t total_clusters);
 
 # endif // DIRECTORY_H

@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
         command[strcspn(command, "\n")] = '\0';
 
         // Processa o comando
-        process_command(command, "", bs, file);
+        process_command(command, "", &bs, file, fat);
     }
 
 

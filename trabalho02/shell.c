@@ -8,7 +8,7 @@
 
 uint32_t current_cluster = 2; // Cluster 2 é geralmente o root.
 
-void process_command(char *command, const char *image_path, const BootSector bs, FILE *file) {
+void process_command(char *command, const char *image_path, const BootSector *bs, FILE *file, uint32_t *fat) {
     char *args[10]; // Máximo de 10 argumentos
     int arg_count = 0;
 
@@ -23,12 +23,13 @@ void process_command(char *command, const char *image_path, const BootSector bs,
         return; // Nenhum comando digitado
     }
 
+
     // Identifica e executa o comando
     if (strcmp(args[0], "ls") == 0) {
         // Listar diretório atual
-        uint32_t fat_offset = bs.reserved_sectors * bs.bytes_per_sector;
-        uint32_t data_offset = fat_offset + (bs.num_fats * bs.fat_size_32 * bs.bytes_per_sector);
-        read_directory(file, current_cluster, bs.bytes_per_sector, bs.sectors_per_cluster, fat_offset, data_offset);
+        uint32_t fat_offset = bs->reserved_sectors * bs->bytes_per_sector;
+        uint32_t data_offset = fat_offset + (bs->num_fats * bs->fat_size_32 * bs->bytes_per_sector);
+        read_directory(file, current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset);
     } else if (strcmp(args[0], "cd") == 0) {
         if (arg_count > 1) {
             // Muda para o diretório especificado
@@ -43,12 +44,12 @@ void process_command(char *command, const char *image_path, const BootSector bs,
         }
         // Cria um novo diretório
         // TODO: Implementar verificação para caracteres inválidos.
-        printf("root_cluster: %d\n", bs.root_cluster);
-        uint32_t fat_offset = bs.reserved_sectors * bs.bytes_per_sector;
-        uint32_t data_offset = fat_offset + (bs.num_fats * bs.fat_size_32 * bs.bytes_per_sector);
-        uint32_t total_clusters = (bs.total_sectors_32 - (data_offset / bs.bytes_per_sector)) / bs.sectors_per_cluster;
-        int result = create_directory(file, current_cluster, args[1], bs.bytes_per_sector, 
-            bs.sectors_per_cluster, 
+        printf("root_cluster: %d\n", bs->root_cluster);
+        uint32_t fat_offset = bs->reserved_sectors * bs->bytes_per_sector;
+        uint32_t data_offset = fat_offset + (bs->num_fats * bs->fat_size_32 * bs->bytes_per_sector);
+        uint32_t total_clusters = (bs->total_sectors_32 - (data_offset / bs->bytes_per_sector)) / bs->sectors_per_cluster;
+        int result = create_directory(file, current_cluster, args[1], bs->bytes_per_sector, 
+            bs->sectors_per_cluster, 
             fat_offset, data_offset, total_clusters
         );
 
@@ -57,7 +58,25 @@ void process_command(char *command, const char *image_path, const BootSector bs,
         }
 
         
-    }  else if (strcmp(args[0], "exit") == 0) {
+    }  else if(strcmp(args[0], "info") == 0){
+        if(arg_count > 1) {
+            printf("uso inválido do comando");
+            return;
+        }
+        print_bootsector_info(bs);
+        print_fat(fat);
+
+    }  else if (strcmp(args[0], "rm") == 0) {
+        if(arg_count <= 1) {
+            printf("Uso: rm <nome>\n");
+            return;
+        }
+        
+        uint32_t fat_offset = bs->reserved_sectors * bs->bytes_per_sector;
+        uint32_t data_offset = fat_offset + (bs->num_fats * bs->fat_size_32 * bs->bytes_per_sector);
+        remove_file(file, current_cluster, args[1], bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, bs->total_sectors_32);
+
+    } else if (strcmp(args[0], "exit") == 0) {
         printf("Saindo...\n");
         exit(0);
     } else {
