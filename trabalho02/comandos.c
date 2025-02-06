@@ -246,7 +246,7 @@ void ls(FILE *image, uint32_t cluster_path, uint32_t bytes_per_sector, uint32_t 
             // Exibe a entrada em formato hexadecimal
            //printf("Entrada de 32 bytes em hexadecimal:\n");
            //print_hex(entry_bytes, sizeof(DirectoryEntry));
-            //printf("\n");
+           //printf("\n");
             DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
 
             if (entry->name[0] == 0x00) // Entrada vazia
@@ -396,6 +396,65 @@ void cd(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
 
 //-----------------------------------------------------------------------------------------------------//
 /*touch*/
+void generate_sfn(const char *long_name, char *sfn, uint32_t file_index) {
+    char name_part[8] = {0}; // 8 caracteres + null terminador
+    char ext_part[3] = {0};  // 3 caracteres + null terminador
+    int name_len = 0, ext_len = 0;
+
+    // Encontra a última ocorrência de '.' para separar nome e extensão
+    const char *dot = strrchr(long_name, '.');
+    if (dot) {
+        name_len = dot - long_name; // Tamanho do nome antes do '.'
+        ext_len = strlen(dot + 1);  // Tamanho da extensão
+    } else {
+        name_len = strlen(long_name);
+    }
+
+    // Copia e ajusta a parte do nome (máximo 8 caracteres)
+    int j = 0;
+    if(name_len > 8){
+        for (int i = 0; i < 6; i++) {
+            if (isalnum(long_name[i])) {
+                name_part[i] = toupper(long_name[i]);
+            }
+        }
+        name_part[6] = '~';
+        name_part[7] = '1';
+    }else{
+        for (int i = 0; i < name_len; i++) {
+            if (isalnum(long_name[i])) {
+                name_part[i] = toupper(long_name[i]);
+            }
+        }
+        for (int i = name_len; i < 8; i++) {
+            name_part[i] = ' ';
+        }
+    }
+    
+
+    // Copia e ajusta a parte da extensão (máximo 3 caracteres)
+    j = 0;
+    if (dot && ext_len > 0) {
+        for (int i = 0; i < ext_len && j < 3; i++) {
+            if (isalnum(dot[1 + i])) {
+                ext_part[j++] = toupper(dot[1 + i]);
+            }
+        }
+    }
+
+    // Se houver conflito, adiciona "~N"
+    strcpy(sfn,name_part);
+    strcat(sfn,ext_part);
+}
+
+uint8_t calculate_sfn_checksum(const uint8_t *sfn) {
+    uint8_t sum = 0;
+    for (int i = 0; i < 11; i++) {
+        sum = ((sum >> 1) | (sum << 7)) + sfn[i];
+    }
+    return sum;
+}
+
 
 
 void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, char * nmArquivo){
@@ -465,16 +524,15 @@ void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
         fseek(image, cluster_address, SEEK_SET);
         printf("cluster entrada: %ld\n", (long int) cluster_address);
         fread(buffer, cluster_size, 1, image);
-        printf("passou aqui");
         for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
              uint8_t *entry_bytes = buffer + i;
 
             DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
 
             if (entry->name[0] == 0x00 || entry->name[0] == 0xE5){ // Entrada vazia
+                if(qtdEspacosDisponiveis == 0) cluster_address_inicial = cluster_address + i;
                 qtdEspacosDisponiveis ++;
-                if (qtdEspacosDisponiveis == qtdEntradas)  break;
-                cluster_address_inicial = cluster_address + i;
+                if (qtdEspacosDisponiveis == qtdEntradas) break;
             }else{
                 cluster_address_inicial = 0;
                 qtdEspacosDisponiveis = 0;
@@ -496,22 +554,109 @@ void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
      if (qtdEspacosDisponiveis != qtdEntradas) {
         printf("Erro: Espaço insuficiente para criar o arquivo.\n");
         return;
+      ///A fazer alocar um novo cluster para o diretorio e redirecionar o cluster atual na FAT
     }
 
     /// gerar o SFN
-    DirectoryEntry sfn;
+    DirectoryEntry *sfn = (DirectoryEntry *)malloc(sizeof(DirectoryEntry));
+    if (!sfn) {
+        perror("Erro ao alocar memória");
+        return;
+    }
+    memset(sfn, 0, sizeof(DirectoryEntry));
+    char sfnNome[11];
+    generate_sfn(nmArquivo, sfnNome, 0);
+    time_t t = time(NULL);
+    struct tm *tm_info = localtime(&t);
+
+    strncpy(sfn->name, sfnNome,11);
+    sfn->attr = ATTR_FILE;
+    sfn->date = ((tm_info->tm_year - 80) << 9) | ((tm_info->tm_mon + 1) << 5) | tm_info->tm_mday;
+    sfn->time = (tm_info->tm_hour << 11) | (tm_info->tm_min << 5) | (tm_info->tm_sec / 2);
+    sfn->date_mod = sfn->date;
+    sfn->time_mod = sfn->time;
+    sfn->size = 0;
+    
     
 
     /// Gerar Chechsum
+    uint8_t checksum = calculate_sfn_checksum(sfn->name);
 
     /// Gerar LFN
+    LFNEntry lfn_buffer2[20];
+    
+    int len = strlen(nmArquivo);
+    int index = 0;
+    int posBuffer = 0;
 
-    /// Salvar
+    for (int i = qtdEntradas - 1; i > 0; i--) {
+        LFNEntry *lfn = (LFNEntry *)malloc(sizeof(LFNEntry));
+        memset(lfn, 0, sizeof(LFNEntry));            
+        lfn->order = (i + 1) | (i == 1 ? 0x40 : 0x00); // Última entrada tem bit 0x40
+        lfn->attr = ATTR_LFN;
+        lfn->type = 0;
+        lfn->checksum = checksum;
+        lfn->first_cluster = 0;
+        for (int j = 0; j < 5; j++) {
+            if (index < len) {
+                uint16_t utf16_char = nmArquivo[index++];
+                ((uint16_t*)lfn->name1)[j] = utf16_char;
+            } else {
+                ((uint16_t*)lfn->name1)[j] = 0; // Espaços vazios em UTF-16
+            }
+        }
+        for (int j = 0; j < 6; j++) {
+            if (index < len) {
+                uint16_t utf16_char = nmArquivo[index++];
+                ((uint16_t*)lfn->name2)[j] = utf16_char;
+            } else {
+                ((uint16_t*)lfn->name2)[j] = 0; // Espaços vazios em UTF-16
+            }
+        }
+        for (int j = 0; j < 2; j++) {
+            if (index < len) {
+                uint16_t utf16_char = nmArquivo[index++];
+                ((uint16_t*)lfn->name3)[j] = utf16_char;
+            } else {
+                ((uint16_t*)lfn->name3)[j] = 0; // Espaços vazios em UTF-16
+            }
+        }
+        lfn_buffer2[i-1] = *lfn;
+         free(lfn);
+    }
+    //char teste_nome[256] = {0};
+    //reconstruct_long_name(teste_nome, lfn_buffer2, (qtdEntradas-1));
+    //printf("Esta aqui a saida: %s\n", teste_nome);
+   
 
 
+    
+
+    uint8_t buffer2[cluster_size];
+    memset(buffer2, 0x00, sizeof(buffer2));
+
+    for (int i = 0; i < qtdEntradas -1; i++){
+        fseek(image, cluster_address_inicial + i * sizeof(LFNEntry), SEEK_SET);
+        printf("cluster escrita: %ld\n", (long int) (cluster_address_inicial + i * sizeof(LFNEntry)));
+        memcpy(buffer2, &lfn_buffer2[i], sizeof(LFNEntry));
+        print_hex( buffer2, sizeof(LFNEntry));
+        fwrite(buffer2, cluster_size, 1, image);
+    }
+
+    fseek(image, (cluster_address_inicial + (qtdEntradas -1) * sizeof(DirectoryEntry)), SEEK_SET);
+    memcpy(buffer2, sfn, sizeof(LFNEntry));
+    print_hex( buffer2, sizeof(DirectoryEntry));
+    fwrite(buffer2, cluster_size, 1, image);
+    fflush(image);
+
+    printf("Arquivo Criado com Sucesso!\n");
+    free(sfn);
 }
 
 
 
 //-----------------------------------------------------------------------------------------------------//
 /*touch*/
+
+/*
+    */

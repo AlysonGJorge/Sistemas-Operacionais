@@ -1,9 +1,8 @@
 #pragma once
-#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
 #include <time.h>
-
 #include "bootsector.h"
 #include "directory.h"
 #include "fat.h"

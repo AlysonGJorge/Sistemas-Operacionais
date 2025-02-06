@@ -4,11 +4,14 @@
 #include <stdint.h>
 #include <string.h> // Para memcpy
 #include <wchar.h>  // Para wchar_t e funções relacionadas
+#include <ctype.h>
 //#include <utilidades.h>
 
 #define SECTOR_SIZE 512 // Tamanho do setor
 //#define DIR_ENTRY_SIZE 32 // Tamanho da entrada de diretório
 #define ATTR_DIRECTORY 0x10 // Atributo para diretório
+#define ATTR_FILE 0x20
+#define ATTR_LFN 0x0F
 
 
 typedef struct {

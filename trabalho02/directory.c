@@ -96,8 +96,8 @@ void read_directory(FILE *image, uint32_t root_cluster, uint32_t bytes_per_secto
              uint8_t *entry_bytes = buffer + i;
 
             // Exibe a entrada em formato hexadecimal
-           // printf("Entrada de 32 bytes em hexadecimal:\n");
-           // print_hex(entry_bytes, sizeof(DirectoryEntry));
+           printf("Entrada de 32 bytes em hexadecimal:\n");
+           print_hex(entry_bytes, sizeof(DirectoryEntry));
             //printf("\n");
             DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
 
