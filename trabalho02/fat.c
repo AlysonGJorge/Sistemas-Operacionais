@@ -34,3 +34,10 @@ void print_fat(uint32_t *fat, uint32_t num_entries, uint32_t start, uint32_t cou
     }
 }
 
+uint32_t getEspacoLivreFat(uint32_t *fat, uint32_t num_entries){
+
+    for (uint32_t i = 0; i < num_entries; i++) {
+        printf("Cluster %u: 0x%08X\n", i, fat[i]);
+    }
+}
+

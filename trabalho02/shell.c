@@ -17,6 +17,7 @@ void process_command(char *command, FILE *file, const BootSector *bs, uint32_t *
 
     uint32_t fat_offset = bs->reserved_sectors * bs->bytes_per_sector;
     uint32_t data_offset = fat_offset + (bs->num_fats * bs->fat_size_32 * bs->bytes_per_sector);
+    uint32_t num_clusters = (bs->total_sectors_32 - bs->reserved_sectors) / bs->sectors_per_cluster;
 
     if (strcmp(args[0], "attr") == 0) {
         if (arg_count > 1) {
@@ -50,6 +51,12 @@ void process_command(char *command, FILE *file, const BootSector *bs, uint32_t *
             touch(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1]);
         } else {
             printf("Uso: touch NomeArquivo\n");
+        }
+    } else if (strcmp(args[0], "mkdir") == 0) {
+        if (arg_count > 1) {
+            mkdir(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1], fat, num_clusters);
+        } else {
+            printf("Uso: mkdir NomeArquivo\n");
         }
     } else if (strcmp(args[0], "exit") == 0) {
         printf("Saindo...\n");

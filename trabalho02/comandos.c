@@ -652,11 +652,204 @@ void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
     printf("Arquivo Criado com Sucesso!\n");
     free(sfn);
 }
-
-
-
 //-----------------------------------------------------------------------------------------------------//
 /*touch*/
 
-/*
-    */
+//-----------------------------------------------------------------------------------------------------//
+/*mkdir*/
+void mkdir(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, char * nmArquivo, uint32_t * fat, uint32_t num_clusters){
+    uint32_t cluster = root_cluster;
+    uint32_t cluster_size = bytes_per_sector * sectors_per_cluster;
+    uint8_t buffer[SECTOR_SIZE];
+
+    
+    LFNEntry lfn_buffer[20];
+    int lfn_index = 0;
+    while (cluster < 0x0FFFFFF8) { // Clusters válidos no FAT32
+        uint32_t cluster_address = data_offset + (cluster - 2) * cluster_size;
+        fseek(image, cluster_address, SEEK_SET);
+        fread(buffer, cluster_size, 1, image);
+
+        for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
+             uint8_t *entry_bytes = buffer + i;
+
+            DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
+
+            if (entry->name[0] == 0x00) // Entrada vazia
+                break;
+
+            if (entry->name[0] == 0xE5) // Entrada deletada
+                continue;
+            if (entry->attr == 0x0F) { // Verifica se é uma entrada LFN
+                LFNEntry *lfn_entry = (LFNEntry *)(entry_bytes);
+                if ((lfn_entry->order & 0x40) != 0) { // Primeira entrada de uma sequência LFN
+                    lfn_index = 0; // Reinicia o buffer
+                }
+                lfn_buffer[lfn_index++] = *lfn_entry;
+            } else {
+                // Reconstrói o nome longo se existirem entradas LFN
+                char long_name[256] = {0};
+                if (lfn_index > 0) {
+                    reconstruct_long_name(long_name, lfn_buffer, lfn_index);
+                    lfn_index = 0; // Limpa o índice
+                    if(!strcmp(long_name, nmArquivo)){
+                        printf ("Arquivo/Diretório encontrado com o mesmo nome : %s\n", nmArquivo);
+                        return;
+                    }
+                }
+            }
+        }
+        // Avança para o próximo cluster (usando a FAT)
+        uint32_t fat_entry_address = fat_offset + cluster * 4;
+        fseek(image, fat_entry_address, SEEK_SET);
+        fread(&cluster, sizeof(uint32_t), 1, image);
+        cluster &= 0x0FFFFFFF;
+    }
+
+    cluster = root_cluster;
+    cluster_size = bytes_per_sector * sectors_per_cluster;
+    buffer[SECTOR_SIZE];
+
+
+    int tamNome = strlen(nmArquivo);
+    int qtdEntradas = tamNome/13;
+    if (tamNome % 13) qtdEntradas ++;
+    qtdEntradas ++;
+    uint32_t cluster_address_inicial;
+    int qtdEspacosDisponiveis = 0;
+     printf("Quantidade entradas: %d\n", qtdEntradas);
+
+    while (cluster < 0x0FFFFFF8 && qtdEspacosDisponiveis != qtdEntradas) { // Clusters válidos no FAT32
+        uint32_t cluster_address = data_offset + (cluster - 2) * cluster_size;
+        fseek(image, cluster_address, SEEK_SET);
+        printf("cluster entrada: %ld\n", (long int) cluster_address);
+        fread(buffer, cluster_size, 1, image);
+        for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
+             uint8_t *entry_bytes = buffer + i;
+
+            DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
+
+            if (entry->name[0] == 0x00 || entry->name[0] == 0xE5){ // Entrada vazia
+                if(qtdEspacosDisponiveis == 0) cluster_address_inicial = cluster_address + i;
+                qtdEspacosDisponiveis ++;
+                if (qtdEspacosDisponiveis == qtdEntradas) break;
+            }else{
+                cluster_address_inicial = 0;
+                qtdEspacosDisponiveis = 0;
+            }
+    
+        }
+        //cluster_address_inicial = 0;
+        //qtdEspacosDisponiveis = 0;
+        // Avança para o próximo cluster (usando a FAT)
+        
+        uint32_t fat_entry_address = fat_offset + cluster * 4;
+        fseek(image, fat_entry_address, SEEK_SET);
+        fread(&cluster, sizeof(uint32_t), 1, image);
+        cluster &= 0x0FFFFFFF;
+    }
+
+    ///Caso não tenha espaço criar novo cluster e relacionar com o diretorio
+
+     if (qtdEspacosDisponiveis != qtdEntradas) {
+        printf("Erro: Espaço insuficiente para criar o arquivo.\n");
+        return;
+      ///A fazer alocar um novo cluster para o diretorio e redirecionar o cluster atual na FAT
+    }
+
+    /// gerar o SFN
+    DirectoryEntry *sfn = (DirectoryEntry *)malloc(sizeof(DirectoryEntry));
+    if (!sfn) {
+        perror("Erro ao alocar memória");
+        return;
+    }
+    memset(sfn, 0, sizeof(DirectoryEntry));
+    char sfnNome[11];
+    generate_sfn(nmArquivo, sfnNome, 0);
+    time_t t = time(NULL);
+    struct tm *tm_info = localtime(&t);
+
+    strncpy(sfn->name, sfnNome,11);
+    sfn->attr = ATTR_DIRECTORY;
+    sfn->date = ((tm_info->tm_year - 80) << 9) | ((tm_info->tm_mon + 1) << 5) | tm_info->tm_mday;
+    sfn->time = (tm_info->tm_hour << 11) | (tm_info->tm_min << 5) | (tm_info->tm_sec / 2);
+    sfn->date_mod = sfn->date;
+    sfn->time_mod = sfn->time;
+    sfn->size = 0;
+    
+    
+
+    /// Gerar Chechsum
+    uint8_t checksum = calculate_sfn_checksum(sfn->name);
+
+    /// Gerar LFN
+    LFNEntry lfn_buffer2[20];
+    
+    int len = strlen(nmArquivo);
+    int index = 0;
+    int posBuffer = 0;
+
+    for (int i = qtdEntradas - 1; i > 0; i--) {
+        LFNEntry *lfn = (LFNEntry *)malloc(sizeof(LFNEntry));
+        memset(lfn, 0, sizeof(LFNEntry));            
+        lfn->order = (i + 1) | (i == 1 ? 0x40 : 0x00); // Última entrada tem bit 0x40
+        lfn->attr = ATTR_LFN;
+        lfn->type = 0;
+        lfn->checksum = checksum;
+        lfn->first_cluster = 0;
+        for (int j = 0; j < 5; j++) {
+            if (index < len) {
+                uint16_t utf16_char = nmArquivo[index++];
+                ((uint16_t*)lfn->name1)[j] = utf16_char;
+            } else {
+                ((uint16_t*)lfn->name1)[j] = 0; // Espaços vazios em UTF-16
+            }
+        }
+        for (int j = 0; j < 6; j++) {
+            if (index < len) {
+                uint16_t utf16_char = nmArquivo[index++];
+                ((uint16_t*)lfn->name2)[j] = utf16_char;
+            } else {
+                ((uint16_t*)lfn->name2)[j] = 0; // Espaços vazios em UTF-16
+            }
+        }
+        for (int j = 0; j < 2; j++) {
+            if (index < len) {
+                uint16_t utf16_char = nmArquivo[index++];
+                ((uint16_t*)lfn->name3)[j] = utf16_char;
+            } else {
+                ((uint16_t*)lfn->name3)[j] = 0; // Espaços vazios em UTF-16
+            }
+        }
+        lfn_buffer2[i-1] = *lfn;
+         free(lfn);
+    }
+    //char teste_nome[256] = {0};
+    //reconstruct_long_name(teste_nome, lfn_buffer2, (qtdEntradas-1));
+    //printf("Esta aqui a saida: %s\n", teste_nome);
+   
+
+    uint8_t buffer2[cluster_size];
+    memset(buffer2, 0x00, sizeof(buffer2));
+
+    for (int i = 0; i < qtdEntradas -1; i++){
+        fseek(image, cluster_address_inicial + i * sizeof(LFNEntry), SEEK_SET);
+        printf("cluster escrita: %ld\n", (long int) (cluster_address_inicial + i * sizeof(LFNEntry)));
+        memcpy(buffer2, &lfn_buffer2[i], sizeof(LFNEntry));
+        print_hex( buffer2, sizeof(LFNEntry));
+        fwrite(buffer2, cluster_size, 1, image);
+    }
+
+    fseek(image, (cluster_address_inicial + (qtdEntradas -1) * sizeof(DirectoryEntry)), SEEK_SET);
+    memcpy(buffer2, sfn, sizeof(LFNEntry));
+    print_hex( buffer2, sizeof(DirectoryEntry));
+    fwrite(buffer2, cluster_size, 1, image);
+    fflush(image);
+
+    printf("Arquivo Criado com Sucesso!\n");
+    free(sfn);
+}
+
+
+//-----------------------------------------------------------------------------------------------------//
+/*mkdir*/
