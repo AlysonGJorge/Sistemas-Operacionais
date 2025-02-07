@@ -776,9 +776,19 @@ void mkdir(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
     sfn->date_mod = sfn->date;
     sfn->time_mod = sfn->time;
     sfn->size = 0;
-    
-    
 
+    uint32_t localLivre = getEspacoLivreFat(fat,num_clusters);
+    if(localLivre == 0xFFFFFFFF){
+        printf("Erro: Não há espaço disponível na FAT.\n");
+        return;
+    } 
+    printf("Cluster encontrado livre %ld\n",(long int)localLivre);
+    sfn->start_high = (uint16_t)((localLivre >> 16) & 0xFFFF); // Parte alta
+    sfn->start_low  = (uint16_t) (localLivre & 0xFFFF);
+    uint32_t starting_cluster = ((uint32_t)sfn->start_high << 16) | (uint32_t)sfn->start_low;
+    printf("Cluster salvo %ld\n",(long int)starting_cluster);
+
+    
     /// Gerar Chechsum
     uint8_t checksum = calculate_sfn_checksum(sfn->name);
 
@@ -824,9 +834,9 @@ void mkdir(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
         lfn_buffer2[i-1] = *lfn;
          free(lfn);
     }
-    //char teste_nome[256] = {0};
-    //reconstruct_long_name(teste_nome, lfn_buffer2, (qtdEntradas-1));
-    //printf("Esta aqui a saida: %s\n", teste_nome);
+    char teste_nome[256] = {0};
+    reconstruct_long_name(teste_nome, lfn_buffer2, (qtdEntradas-1));
+    printf("Esta aqui a saida: %s\n", teste_nome);
    
 
     uint8_t buffer2[cluster_size];
@@ -846,7 +856,36 @@ void mkdir(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
     fwrite(buffer2, cluster_size, 1, image);
     fflush(image);
 
-    printf("Arquivo Criado com Sucesso!\n");
+
+    uint32_t last_cluster = root_cluster;
+    uint32_t last_cluster_address = data_offset + (starting_cluster - 2) * cluster_size;
+    DirectoryEntry *sfn_last_cluster = (DirectoryEntry *)malloc(sizeof(DirectoryEntry));
+    if (!sfn_last_cluster) {
+        perror("Erro ao alocar memória");
+        return;
+    }
+    memset(sfn_last_cluster, 0, sizeof(DirectoryEntry));
+
+    strcpy(sfn_last_cluster->name , "..");
+    sfn_last_cluster->attr = ATTR_DIRECTORY;
+    sfn_last_cluster->date = ((tm_info->tm_year - 80) << 9) | ((tm_info->tm_mon + 1) << 5) | tm_info->tm_mday;
+    sfn_last_cluster->time = (tm_info->tm_hour << 11) | (tm_info->tm_min << 5) | (tm_info->tm_sec / 2);
+    sfn_last_cluster->date_mod = sfn->date;
+    sfn_last_cluster->time_mod = sfn->time;
+    sfn_last_cluster->size = 0;
+
+    sfn_last_cluster->start_high = (uint16_t)((last_cluster >> 16) & 0xFFFF); // Parte alta
+    sfn_last_cluster->start_low  = (uint16_t) (last_cluster & 0xFFFF);
+    //uint32_t starting_cluster = ((uint32_t)sfn->start_high << 16) | (uint32_t)sfn->start_low;
+    //printf("Cluster salvo %ld\n",(long int)starting_cluster);
+
+    fseek(image, last_cluster_address, SEEK_SET);
+    memcpy(buffer2, sfn_last_cluster, sizeof(DirectoryEntry));
+    print_hex( buffer2, sizeof(DirectoryEntry));
+    fwrite(buffer2, cluster_size, 1, image);
+    fflush(image);
+
+    printf("Diretorio Criado com Sucesso!\n");
     free(sfn);
 }
 

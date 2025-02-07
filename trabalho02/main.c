@@ -56,7 +56,9 @@ int main(int argc, char *argv[]) {
 
     char command[256];
      printf("\n\n");
+     
      uint32_t current_cluster = 2; // Cluster 2 é geralmente o root.
+     uint32_t last_cluster = 0; // Cluster 2 é geralmente o root.
      char current_path[256]  = {'/'}; // Cluster 2 é geralmente o root.
      char last_path[256]  = {' '}; // Cluster 2 é geralmente o root.
     while (1) {
