@@ -104,7 +104,7 @@ void read_directory(FILE *image, uint32_t root_cluster, uint32_t bytes_per_secto
             if (entry->name[0] == 0x00) // Entrada vazia
                 break;
 
-            if (entry->name[0] == 0xE5) // Entrada deletada
+            if ((uint8_t)entry->name[0] == 0xE5) // Entrada deletada
                 continue;
             if (entry->attr == 0x0F) { // Verifica se é uma entrada LFN
                 LFNEntry *lfn_entry = (LFNEntry *)(entry_bytes);

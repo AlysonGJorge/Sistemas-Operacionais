@@ -58,6 +58,12 @@ void process_command(char *command, FILE *file, const BootSector *bs, uint32_t *
         } else {
             printf("Uso: mkdir NomeArquivo\n");
         }
+    } else if (strcmp(args[0], "rm") == 0) {
+        if (arg_count > 1) {
+            rm(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1], fat, num_clusters);
+        } else {
+            printf("Uso: rm NomeArquivo\n");
+        }
     } else if (strcmp(args[0], "exit") == 0) {
         printf("Saindo...\n");
         exit(0);

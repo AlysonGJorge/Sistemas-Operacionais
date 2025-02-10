@@ -12,6 +12,8 @@
 #define ATTR_DIRECTORY 0x10 // Atributo para diretório
 #define ATTR_FILE 0x20
 #define ATTR_LFN 0x0F
+#define DELETED 0xE5
+#define EOC 0x0FFFFFF8
 
 
 typedef struct {
