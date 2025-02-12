@@ -48,7 +48,7 @@ void process_command(char *command, FILE *file, const BootSector *bs, uint32_t *
         pwd(current_path);
     } else if (strcmp(args[0], "touch") == 0) {
         if (arg_count > 1) {
-            touch(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1]);
+            touch(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1],0,0);
         } else {
             printf("Uso: touch NomeArquivo\n");
         }
@@ -64,7 +64,13 @@ void process_command(char *command, FILE *file, const BootSector *bs, uint32_t *
         } else {
             printf("Uso: rm NomeArquivo\n");
         }
-    } else if (strcmp(args[0], "exit") == 0) {
+    }  else if (strcmp(args[0], "cp") == 0) {
+        if (arg_count > 2) {
+            cp(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1], args[2], fat, num_clusters);
+        } else {
+            printf("Uso: cp sourcePath targetPath\n");
+        }
+    }else if (strcmp(args[0], "exit") == 0) {
         printf("Saindo...\n");
         exit(0);
     } else {
