@@ -402,7 +402,8 @@ void generate_sfn(const char *long_name, char *sfn, uint32_t file_index) {
     char name_part[8] = {0}; // 8 caracteres + null terminador
     char ext_part[3] = {0};  // 3 caracteres + null terminador
     int name_len = 0, ext_len = 0;
-
+    const char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    srand(time(NULL));
     // Encontra a última ocorrência de '.' para separar nome e extensão
     const char *dot = strrchr(long_name, '.');
     if (dot) {
@@ -416,9 +417,7 @@ void generate_sfn(const char *long_name, char *sfn, uint32_t file_index) {
     int j = 0;
     if(name_len > 8){
         for (int i = 0; i < 6; i++) {
-            if (isalnum(long_name[i])) {
-                name_part[i] = toupper(long_name[i]);
-            }
+            name_part[i] = (char) charset[rand() % (sizeof(charset) - 1)];
         }
         name_part[6] = '~';
         name_part[7] = '1';
@@ -445,7 +444,8 @@ void generate_sfn(const char *long_name, char *sfn, uint32_t file_index) {
     }
 
     // Se houver conflito, adiciona "~N"
-    strcpy(sfn,name_part);
+    strncpy(sfn,name_part,8);
+    sfn[8]='\0';
     strcat(sfn,ext_part);
 }
 
@@ -458,11 +458,63 @@ uint8_t calculate_sfn_checksum(const uint8_t *sfn) {
 }
 
 
+uint32_t allocate_new_cluster(FILE *image, uint32_t current_cluster, uint32_t fat_offset, uint32_t num_clusters) {
+    // Percorre a FAT para encontrar um cluster livre
+    uint32_t new_cluster = 0;
+    uint32_t end = EOF;
+    for (uint32_t i = 2; i < num_clusters; i++) { // FAT começa no cluster 2
+        uint32_t fat_entry;
+        fseek(image, fat_offset + i * 4, SEEK_SET);
+        fread(&fat_entry, sizeof(uint32_t), 1, image);
+        fat_entry &= 0x0FFFFFFF; // Mascara para pegar apenas os 28 bits válidos
 
-void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, char * nmArquivo, uint32_t tamArquivo, uint32_t clusterInicial){
+        if (fat_entry == 0x00000000) { // Encontrou um espaço livre
+            new_cluster = i;
+            break;
+        }
+    }
+
+    if (new_cluster == 0) {
+        printf("Erro: Não há espaço livre na FAT para alocar um novo cluster.\n");
+        return 0;
+    }
+
+    // Atualiza a FAT: cluster atual aponta para o novo
+    fseek(image, fat_offset + current_cluster * 4, SEEK_SET);
+    fwrite(&new_cluster, sizeof(uint32_t), 1, image);
+
+    // Marca o novo cluster como fim de cadeia (EOC)
+    fseek(image, fat_offset + new_cluster * 4, SEEK_SET);
+    fwrite(&end, sizeof(uint32_t), 1, image);
+
+    return new_cluster;
+}
+
+void clear_cluster(FILE *image, uint32_t cluster, uint32_t data_offset, uint32_t cluster_size) {
+    uint8_t *buffer = calloc(cluster_size, 1);  // Aloca e inicializa com zeros
+    if (!buffer) {
+        fprintf(stderr, "Erro ao alocar buffer para limpar cluster.\n");
+        return;
+    }
+
+    // Calcula o endereço do cluster dentro da imagem
+    uint32_t cluster_address = data_offset + (cluster - 2) * cluster_size;
+
+    // Posiciona e escreve os zeros no cluster
+    fseek(image, cluster_address, SEEK_SET);
+    fwrite(buffer, cluster_size, 1, image);
+    fflush(image);
+
+    free(buffer);
+}
+
+
+void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, char * nmArquivo, uint32_t tamArquivo, uint32_t clusterInicial, uint32_t num_cluster){
     uint32_t cluster = root_cluster;
     uint32_t cluster_size = bytes_per_sector * sectors_per_cluster;
     uint8_t buffer[SECTOR_SIZE];
+    uint32_t lastCluster;
+    int qtdEntrada1, qtdEntrada2;
     //printf("Este é o nome do arquivo no touch %s \n ", nmArquivo);
     
     LFNEntry lfn_buffer[20];
@@ -517,7 +569,7 @@ void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
     int qtdEntradas = tamNome/13;
     if (tamNome % 13) qtdEntradas ++;
     qtdEntradas ++;
-    uint32_t cluster_address_inicial;
+    uint32_t cluster_address_inicial1, cluster_address_inicial2;
     int qtdEspacosDisponiveis = 0;
      printf("Quantidade entradas: %d\n", qtdEntradas);
 
@@ -532,11 +584,11 @@ void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
             DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
 
             if (entry->name[0] == 0x00 || entry->name[0] == 0xE5){ // Entrada vazia
-                if(qtdEspacosDisponiveis == 0) cluster_address_inicial = cluster_address + i;
+                if(qtdEspacosDisponiveis == 0) cluster_address_inicial1 = cluster_address + i;
                 qtdEspacosDisponiveis ++;
                 if (qtdEspacosDisponiveis == qtdEntradas) break;
             }else{
-                cluster_address_inicial = 0;
+                cluster_address_inicial1 = 0;
                 qtdEspacosDisponiveis = 0;
             }
     
@@ -546,18 +598,42 @@ void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
         // Avança para o próximo cluster (usando a FAT)
         
         uint32_t fat_entry_address = fat_offset + cluster * 4;
+        lastCluster = cluster;
         fseek(image, fat_entry_address, SEEK_SET);
         fread(&cluster, sizeof(uint32_t), 1, image);
         cluster &= 0x0FFFFFFF;
     }
 
     ///Caso não tenha espaço criar novo cluster e relacionar com o diretorio
-
+    qtdEntrada1 = qtdEspacosDisponiveis;
      if (qtdEspacosDisponiveis != qtdEntradas) {
-        printf("Erro: Espaço insuficiente para criar o arquivo.\n");
-        return;
-      ///A fazer alocar um novo cluster para o diretorio e redirecionar o cluster atual na FAT
+        uint32_t newCluster = allocate_new_cluster(image, lastCluster, fat_offset, num_cluster);
+        if (!newCluster)
+        {
+            printf("Erro: Espaço insuficiente para criar o arquivo.\n");
+            return;
+        }
+        clear_cluster (image,newCluster,data_offset, cluster_size );
+        uint32_t cluster_address = data_offset + (newCluster - 2) * cluster_size;
+        fseek(image, cluster_address, SEEK_SET);
+        printf("cluster entrada: %ld\n", (long int) cluster_address);
+        fread(buffer, cluster_size, 1, image);
+        for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
+             uint8_t *entry_bytes = buffer + i;
+
+            DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
+
+            if (entry->name[0] == 0x00 || entry->name[0] == 0xE5){ // Entrada vazia
+                if(qtdEspacosDisponiveis == 0) cluster_address_inicial2 = cluster_address + i;
+                qtdEspacosDisponiveis ++;
+                if (qtdEspacosDisponiveis == qtdEntradas) break;
+            }else{
+                cluster_address_inicial2 = 0;
+                qtdEspacosDisponiveis = qtdEntrada1;
+            }
+        }
     }
+    qtdEntrada2 = qtdEntradas - qtdEntrada1;
 
     /// gerar o SFN
     DirectoryEntry *sfn = (DirectoryEntry *)malloc(sizeof(DirectoryEntry));
@@ -643,19 +719,45 @@ void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
     uint8_t buffer2[cluster_size];
     memset(buffer2, 0x00, sizeof(buffer2));
 
-    for (int i = 0; i < qtdEntradas -1; i++){
-        fseek(image, cluster_address_inicial + i * sizeof(LFNEntry), SEEK_SET);
-        printf("cluster escrita: %ld\n", (long int) (cluster_address_inicial + i * sizeof(LFNEntry)));
-        memcpy(buffer2, &lfn_buffer2[i], sizeof(LFNEntry));
-        print_hex( buffer2, sizeof(LFNEntry));
-        fwrite(buffer2, cluster_size, 1, image);
-    }
+    if (qtdEntrada2 == 0){
+        for (int i = 0; i < qtdEntradas -1; i++){
+            fseek(image, cluster_address_inicial1 + i * sizeof(LFNEntry), SEEK_SET);
+            printf("cluster escrita: %ld\n", (long int) (cluster_address_inicial1 + i * sizeof(LFNEntry)));
+            memcpy(buffer2, &lfn_buffer2[i], sizeof(LFNEntry));
+            print_hex( buffer2, sizeof(LFNEntry));
+            fwrite(buffer2, cluster_size, 1, image);
+        }
 
-    fseek(image, (cluster_address_inicial + (qtdEntradas -1) * sizeof(DirectoryEntry)), SEEK_SET);
-    memcpy(buffer2, sfn, sizeof(LFNEntry));
-    print_hex( buffer2, sizeof(DirectoryEntry));
-    fwrite(buffer2, cluster_size, 1, image);
-    fflush(image);
+        fseek(image, (cluster_address_inicial1 + (qtdEntradas -1) * sizeof(DirectoryEntry)), SEEK_SET);
+        memcpy(buffer2, sfn, sizeof(LFNEntry));
+        print_hex( buffer2, sizeof(DirectoryEntry));
+        fwrite(buffer2, cluster_size, 1, image);
+        fflush(image);
+    }else{
+        for (int i = 0; i < qtdEntrada1; i++){
+            fseek(image, cluster_address_inicial1 + i * sizeof(LFNEntry), SEEK_SET);
+            printf("cluster escrita: %ld\n", (long int) (cluster_address_inicial1 + i * sizeof(LFNEntry)));
+            memcpy(buffer2, &lfn_buffer2[i], sizeof(LFNEntry));
+            print_hex( buffer2, sizeof(LFNEntry));
+            fwrite(buffer2, cluster_size, 1, image);
+        }
+
+        for (int i = 0; i < (qtdEntrada2 - 1); i++){
+            fseek(image, cluster_address_inicial2 + i * sizeof(LFNEntry), SEEK_SET);
+            printf("cluster escrita: %ld\n", (long int) (cluster_address_inicial2 + i * sizeof(LFNEntry)));
+            memcpy(buffer2, &lfn_buffer2[i], sizeof(LFNEntry));
+            print_hex( buffer2, sizeof(LFNEntry));
+            fwrite(buffer2, cluster_size, 1, image);
+        }
+
+        fseek(image, (cluster_address_inicial2 + (qtdEntrada2 -1) * sizeof(DirectoryEntry)), SEEK_SET);
+        memcpy(buffer2, sfn, sizeof(LFNEntry));
+        print_hex( buffer2, sizeof(DirectoryEntry));
+        fwrite(buffer2, cluster_size, 1, image);
+        fflush(image);
+    }
+    
+    
 
     printf("Arquivo Criado com Sucesso!\n");
     free(sfn);
@@ -1139,163 +1241,425 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
     char * nmArquivo;
     uint32_t starting_cluster, src_cluster;
 
-    token = strtok(sourcePath,"/");
-    nextToken = strtok(NULL, "/");
-    printf("token: %s --- Next token: %s \n", token, nextToken);
 
-    LFNEntry lfn_buffer[20];
-    int lfn_index = 0;
-    while (cluster < 0x0FFFFFF8) { // Clusters válidos no FAT32
-        uint32_t cluster_address = data_offset + (cluster - 2) * cluster_size;
-        fseek(image, cluster_address, SEEK_SET);
-        fread(buffer, cluster_size, 1, image);
+    if(!(strncmp(sourcePath, "img", 3)) && !(strncmp(targetPath, "img", 3))){
+        printf("Entrou aqui");
+        strcpy(sourcePath, sourcePath + 3);
+        strcpy(targetPath, targetPath + 3);
+        token = strtok(sourcePath,"/");
+        nextToken = strtok(NULL, "/");
+        printf("token: %s --- Next token: %s \n", token, nextToken);
 
-        for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
-             uint8_t *entry_bytes = buffer + i;
+        LFNEntry lfn_buffer[20];
+        int lfn_index = 0;
+        while (cluster < 0x0FFFFFF8) { // Clusters válidos no FAT32
+            uint32_t cluster_address = data_offset + (cluster - 2) * cluster_size;
+            fseek(image, cluster_address, SEEK_SET);
+            fread(buffer, cluster_size, 1, image);
 
-            DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
+            for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
+                uint8_t *entry_bytes = buffer + i;
 
-            if (entry->name[0] == 0x00) // Entrada vazia
-                break;
+                DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
 
-            if (entry->name[0] == 0xE5) // Entrada deletada
-                continue;
-            if (entry->attr == 0x0F) { // Verifica se é uma entrada LFN
-                LFNEntry *lfn_entry = (LFNEntry *)(entry_bytes);
-                if ((lfn_entry->order & 0x40) != 0) { // Primeira entrada de uma sequência LFN
-                    lfn_index = 0; // Reinicia o buffer
-                    cluster_inicial = cluster_address + i;
-                }
-                lfn_buffer[lfn_index++] = *lfn_entry;
-            } else {
-                // Reconstrói o nome longo se existirem entradas LFN
-                char long_name[256] = {0};
-                if (lfn_index > 0) {
-                    reconstruct_long_name(long_name, lfn_buffer, lfn_index);
-                    lfn_index = 0;
-                    printf("token: %s --- long_name %s \n", token, long_name);
-                    if (!strcmp(token, long_name))
-                    {
-                        if (nextToken != NULL)
+                if (entry->name[0] == 0x00) // Entrada vazia
+                    break;
+
+                if (entry->name[0] == 0xE5) // Entrada deletada
+                    continue;
+                if (entry->attr == 0x0F) { // Verifica se é uma entrada LFN
+                    LFNEntry *lfn_entry = (LFNEntry *)(entry_bytes);
+                    if ((lfn_entry->order & 0x40) != 0) { // Primeira entrada de uma sequência LFN
+                        lfn_index = 0; // Reinicia o buffer
+                        cluster_inicial = cluster_address + i;
+                    }
+                    lfn_buffer[lfn_index++] = *lfn_entry;
+                } else {
+                    // Reconstrói o nome longo se existirem entradas LFN
+                    char long_name[256] = {0};
+                    if (lfn_index > 0) {
+                        reconstruct_long_name(long_name, lfn_buffer, lfn_index);
+                        lfn_index = 0;
+                        printf("token: %s --- long_name %s \n", token, long_name);
+                        if (!strcmp(token, long_name))
                         {
-                            starting_cluster = (entry->start_high << 16) | entry->start_low;
-                            cluster_address = data_offset + (starting_cluster - 2) * cluster_size;
-                            fseek(image, cluster_address, SEEK_SET);
-                            fread(buffer, cluster_size, 1, image);
-                            i = 0;
-                            strcpy(token, nextToken);
-                            nextToken = strtok(NULL, "/"); // Próximo token
-                        }else if (entry->attr = ATTR_FILE)
-                        {
-                            tamArquivo = entry->size;
-                            src_cluster = (entry->start_high << 16) | entry->start_low;
-                            printf("Arquivo encontrado: tamanho %d cluster inicial %d \n\n",tamArquivo, src_cluster);
-                            inAchou = 1;
-                            break;
-                        }    
-                    }         
+                            if (nextToken != NULL)
+                            {
+                                starting_cluster = (entry->start_high << 16) | entry->start_low;
+                                cluster_address = data_offset + (starting_cluster - 2) * cluster_size;
+                                fseek(image, cluster_address, SEEK_SET);
+                                fread(buffer, cluster_size, 1, image);
+                                i = 0;
+                                strcpy(token, nextToken);
+                                nextToken = strtok(NULL, "/"); // Próximo token
+                            }else if (entry->attr = ATTR_FILE)
+                            {
+                                tamArquivo = entry->size;
+                                src_cluster = (entry->start_high << 16) | entry->start_low;
+                                printf("Arquivo encontrado: tamanho %d cluster inicial %d \n\n",tamArquivo, src_cluster);
+                                inAchou = 1;
+                                break;
+                            }    
+                        }         
+                    }
                 }
             }
-        }
-        // Avança para o próximo cluster (usando a FAT)
-        if(!inAchou){
-            uint32_t fat_entry_address = fat_offset + cluster * 4;
-            fseek(image, fat_entry_address, SEEK_SET);
-            fread(&cluster, sizeof(uint32_t), 1, image);
-            cluster &= 0x0FFFFFFF;
-        }else{
-            break;
-        }
-    }
-    if (!inAchou)
-    {
-        printf("Source path não encontrado\n");
-        return;
-    }
-    
-
-    cluster = root_cluster;
-    token = strtok(targetPath,"/");
-    nextToken = strtok(NULL, "/");
-    printf("token: %s --- Next token: %s \n", token, nextToken);
-    while (cluster < 0x0FFFFFF8) { // Clusters válidos no FAT32
-        uint32_t cluster_address = data_offset + (cluster - 2) * cluster_size;
-        fseek(image, cluster_address, SEEK_SET);
-        fread(buffer, cluster_size, 1, image);
-
-        for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
-             uint8_t *entry_bytes = buffer + i;
-
-            DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
-
-            if (nextToken == NULL){
-                printf("endereço válido\n");
-                cluster_diretorio = cluster;
-                inValido = 1;
-                break;
-            }
-
-            if (entry->name[0] == 0x00) // Entrada vazia
-                break;
-
-            if (entry->name[0] == 0xE5) // Entrada deletada
-                continue;
-            if (entry->attr == 0x0F) { // Verifica se é uma entrada LFN
-                LFNEntry *lfn_entry = (LFNEntry *)(entry_bytes);
-                if ((lfn_entry->order & 0x40) != 0) { // Primeira entrada de uma sequência LFN
-                    lfn_index = 0; // Reinicia o buffer
-                    cluster_inicial = cluster_address + i;
-                }
-                lfn_buffer[lfn_index++] = *lfn_entry;
-            } else {
-                // Reconstrói o nome longo se existirem entradas LFN
-                char long_name[256] = {0};
-                if (lfn_index > 0) {
-                    reconstruct_long_name(long_name, lfn_buffer, lfn_index);
-                    lfn_index = 0;
-                    printf("token: %s --- long_name %s \n", token, long_name);
-                    if (!strcmp(token, long_name))
-                    {
-                        if (nextToken != NULL)
-                        {
-                            starting_cluster = (entry->start_high << 16) | entry->start_low;
-                            cluster_address = data_offset + (starting_cluster - 2) * cluster_size;
-                            fseek(image, cluster_address, SEEK_SET);
-                            fread(buffer, cluster_size, 1, image);
-                            i = 0;
-                            strcpy(token, nextToken);
-                            nextToken = strtok(NULL, "/"); // Próximo token
-                        }   
-                    }         
-                }
-            }
-        }
-        if(!inValido){
             // Avança para o próximo cluster (usando a FAT)
-            uint32_t fat_entry_address = fat_offset + cluster * 4;
-            fseek(image, fat_entry_address, SEEK_SET);
-            fread(&cluster, sizeof(uint32_t), 1, image);
-            cluster &= 0x0FFFFFFF;
+            if(!inAchou){
+                uint32_t fat_entry_address = fat_offset + cluster * 4;
+                fseek(image, fat_entry_address, SEEK_SET);
+                fread(&cluster, sizeof(uint32_t), 1, image);
+                cluster &= 0x0FFFFFFF;
+            }else{
+                break;
+            }
         }
-        else{
-            break;
+        if (!inAchou)
+        {
+            printf("Source path não encontrado\n");
+            return;
         }
-    }
+        
 
-    if (!inValido)
-    {
-        printf("target path não encontrado\n");
+        cluster = root_cluster;
+        token = strtok(targetPath,"/");
+        nextToken = strtok(NULL, "/");
+        starting_cluster = root_cluster;
+        printf("token: %s --- Next token: %s \n", token, nextToken);
+        while (cluster < 0x0FFFFFF8) { // Clusters válidos no FAT32
+            uint32_t cluster_address = data_offset + (cluster - 2) * cluster_size;
+            fseek(image, cluster_address, SEEK_SET);
+            fread(buffer, cluster_size, 1, image);
+
+            for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
+                uint8_t *entry_bytes = buffer + i;
+
+                DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
+
+                if (nextToken == NULL){
+                    printf("endereço válido\n");
+                    printf ("Esse é o cluster: %d", starting_cluster);
+                    cluster_diretorio = starting_cluster;
+                    inValido = 1;
+                    break;
+                }
+
+                if (entry->name[0] == 0x00) // Entrada vazia
+                    break;
+
+                if (entry->name[0] == 0xE5) // Entrada deletada
+                    continue;
+                if (entry->attr == 0x0F) { // Verifica se é uma entrada LFN
+                    LFNEntry *lfn_entry = (LFNEntry *)(entry_bytes);
+                    if ((lfn_entry->order & 0x40) != 0) { // Primeira entrada de uma sequência LFN
+                        lfn_index = 0; // Reinicia o buffer
+                        cluster_inicial = cluster_address + i;
+                    }
+                    lfn_buffer[lfn_index++] = *lfn_entry;
+                } else {
+                    // Reconstrói o nome longo se existirem entradas LFN
+                    char long_name[256] = {0};
+                    if (lfn_index > 0) {
+                        reconstruct_long_name(long_name, lfn_buffer, lfn_index);
+                        lfn_index = 0;
+                        printf("token: %s --- long_name %s \n", token, long_name);
+                        if (!strcmp(token, long_name))
+                        {
+                            if (nextToken != NULL)
+                            {
+                                starting_cluster = (entry->start_high << 16) | entry->start_low;
+                                cluster_address = data_offset + (starting_cluster - 2) * cluster_size;
+                                fseek(image, cluster_address, SEEK_SET);
+                                fread(buffer, cluster_size, 1, image);
+                                i = 0;
+                                strcpy(token, nextToken);
+                                nextToken = strtok(NULL, "/"); // Próximo token
+                            }   
+                        }         
+                    }
+                }
+            }
+            if(!inValido){
+                // Avança para o próximo cluster (usando a FAT)
+                uint32_t fat_entry_address = fat_offset + cluster * 4;
+                fseek(image, fat_entry_address, SEEK_SET);
+                fread(&cluster, sizeof(uint32_t), 1, image);
+                cluster &= 0x0FFFFFFF;
+            }
+            else{
+                break;
+            }
+        }
+
+        if (!inValido)
+        {
+            printf("target path não encontrado\n");
+            return;
+        }
+
+        uint32_t clusters_necessarios = calcular_clusters_necessarios(tamArquivo, cluster_size);
+        uint32_t primeiro_cluster = alocar_clusters(image, clusters_necessarios, fat_offset, num_clusters);
+
+        touch(image, cluster_diretorio, bytes_per_sector, sectors_per_cluster, fat_offset, data_offset, token, tamArquivo, primeiro_cluster, num_clusters);
+        copy_clusters(image, src_cluster, primeiro_cluster, fat_offset, data_offset, cluster_size);
+        //printf ("cluster diretorio: %d nome arquivo %s \n", cluster_diretorio, token);
+        //printf ("cluster necessários: %d primeiro cluster %d \n", clusters_necessarios, primeiro_cluster);
         return;
+    }else if (!(strncmp(sourcePath, "img", 3)) && !(strncmp(targetPath, "/", 1)))
+    {
+        strcpy(sourcePath, sourcePath + 3);
+        token = strtok(sourcePath,"/");
+        nextToken = strtok(NULL, "/");
+        printf("token: %s --- Next token: %s \n", token, nextToken);
+
+        LFNEntry lfn_buffer[20];
+        int lfn_index = 0;
+        while (cluster < 0x0FFFFFF8) { // Clusters válidos no FAT32
+            uint32_t cluster_address = data_offset + (cluster - 2) * cluster_size;
+            fseek(image, cluster_address, SEEK_SET);
+            fread(buffer, cluster_size, 1, image);
+
+            for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
+                uint8_t *entry_bytes = buffer + i;
+
+                DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
+
+                if (entry->name[0] == 0x00) // Entrada vazia
+                    break;
+
+                if (entry->name[0] == 0xE5) // Entrada deletada
+                    continue;
+                if (entry->attr == 0x0F) { // Verifica se é uma entrada LFN
+                    LFNEntry *lfn_entry = (LFNEntry *)(entry_bytes);
+                    if ((lfn_entry->order & 0x40) != 0) { // Primeira entrada de uma sequência LFN
+                        lfn_index = 0; // Reinicia o buffer
+                        cluster_inicial = cluster_address + i;
+                    }
+                    lfn_buffer[lfn_index++] = *lfn_entry;
+                } else {
+                    // Reconstrói o nome longo se existirem entradas LFN
+                    char long_name[256] = {0};
+                    if (lfn_index > 0) {
+                        reconstruct_long_name(long_name, lfn_buffer, lfn_index);
+                        lfn_index = 0;
+                        printf("token: %s --- long_name %s \n", token, long_name);
+                        if (!strcmp(token, long_name))
+                        {
+                            if (nextToken != NULL)
+                            {
+                                starting_cluster = (entry->start_high << 16) | entry->start_low;
+                                cluster_address = data_offset + (starting_cluster - 2) * cluster_size;
+                                fseek(image, cluster_address, SEEK_SET);
+                                fread(buffer, cluster_size, 1, image);
+                                i = 0;
+                                strcpy(token, nextToken);
+                                nextToken = strtok(NULL, "/"); // Próximo token
+                            }else if (entry->attr = ATTR_FILE)
+                            {
+                                tamArquivo = entry->size;
+                                src_cluster = (entry->start_high << 16) | entry->start_low;
+                                printf("Arquivo encontrado: tamanho %d cluster inicial %d \n\n",tamArquivo, src_cluster);
+                                inAchou = 1;
+                                break;
+                            }    
+                        }         
+                    }
+                }
+            }
+            // Avança para o próximo cluster (usando a FAT)
+            if(!inAchou){
+                uint32_t fat_entry_address = fat_offset + cluster * 4;
+                fseek(image, fat_entry_address, SEEK_SET);
+                fread(&cluster, sizeof(uint32_t), 1, image);
+                cluster &= 0x0FFFFFFF;
+            }else{
+                break;
+            }
+        }
+        if (!inAchou)
+        {
+            printf("Source path não encontrado\n");
+            return;
+        }
+
+
+
+        FILE *out_file = fopen(targetPath, "wb");
+        if (!out_file) {
+            perror("Erro ao criar arquivo no host");
+            return;
+        }
+
+        uint8_t *buffer = malloc(cluster_size);
+        if (!buffer) {
+            fprintf(stderr, "Erro ao alocar memória\n");
+            fclose(out_file);
+            return;
+        }
+
+        uint32_t current_cluster = src_cluster;
+        while (current_cluster < EOC) {
+            uint32_t src_address = data_offset + (current_cluster - 2) * cluster_size;
+            fseek(image, src_address, SEEK_SET);
+            fread(buffer, cluster_size, 1, image);
+            fwrite(buffer, cluster_size, 1, out_file);
+
+            // Avançar na FAT
+            fseek(image, fat_offset + current_cluster * 4, SEEK_SET);
+            fread(&current_cluster, sizeof(uint32_t), 1, image);
+            current_cluster &= 0x0FFFFFFF;
+        }
+
+        printf("Arquivo copiado com sucesso para %s\n", targetPath);
+        free(buffer);
+        fclose(out_file);
+    }else if ( !(strncmp(sourcePath, "/", 1)) && !(strncmp(targetPath, "img", 3)))
+    {
+        strcpy(targetPath, targetPath + 3);
+        FILE *in_file = fopen(sourcePath, "rb");
+        if (!in_file) {
+            perror("Erro ao abrir arquivo do host");
+            return;
+        }
+
+        cluster = root_cluster;
+        token = strtok(targetPath,"/");
+        nextToken = strtok(NULL, "/");
+        starting_cluster = root_cluster;
+        LFNEntry lfn_buffer[20];
+        int lfn_index = 0;
+        printf("token: %s --- Next token: %s \n", token, nextToken);
+        while (cluster < 0x0FFFFFF8) { // Clusters válidos no FAT32
+            uint32_t cluster_address = data_offset + (cluster - 2) * cluster_size;
+            fseek(image, cluster_address, SEEK_SET);
+            fread(buffer, cluster_size, 1, image);
+
+            for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
+                uint8_t *entry_bytes = buffer + i;
+
+                DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
+
+                if (nextToken == NULL){
+                    printf("endereço válido\n");
+                    printf ("Esse é o cluster: %d", starting_cluster);
+                    cluster_diretorio = starting_cluster;
+                    inValido = 1;
+                    break;
+                }
+
+                if (entry->name[0] == 0x00) // Entrada vazia
+                    break;
+
+                if (entry->name[0] == 0xE5) // Entrada deletada
+                    continue;
+                if (entry->attr == 0x0F) { // Verifica se é uma entrada LFN
+                    LFNEntry *lfn_entry = (LFNEntry *)(entry_bytes);
+                    if ((lfn_entry->order & 0x40) != 0) { // Primeira entrada de uma sequência LFN
+                        lfn_index = 0; // Reinicia o buffer
+                        cluster_inicial = cluster_address + i;
+                    }
+                    lfn_buffer[lfn_index++] = *lfn_entry;
+                } else {
+                    // Reconstrói o nome longo se existirem entradas LFN
+                    char long_name[256] = {0};
+                    if (lfn_index > 0) {
+                        reconstruct_long_name(long_name, lfn_buffer, lfn_index);
+                        lfn_index = 0;
+                        printf("token: %s --- long_name %s \n", token, long_name);
+                        if (!strcmp(token, long_name))
+                        {
+                            if (nextToken != NULL)
+                            {
+                                starting_cluster = (entry->start_high << 16) | entry->start_low;
+                                cluster_address = data_offset + (starting_cluster - 2) * cluster_size;
+                                fseek(image, cluster_address, SEEK_SET);
+                                fread(buffer, cluster_size, 1, image);
+                                i = 0;
+                                strcpy(token, nextToken);
+                                nextToken = strtok(NULL, "/"); // Próximo token
+                            }   
+                        }         
+                    }
+                }
+            }
+            if(!inValido){
+                // Avança para o próximo cluster (usando a FAT)
+                uint32_t fat_entry_address = fat_offset + cluster * 4;
+                fseek(image, fat_entry_address, SEEK_SET);
+                fread(&cluster, sizeof(uint32_t), 1, image);
+                cluster &= 0x0FFFFFFF;
+            }
+            else{
+                break;
+            }
+        }
+
+        if (!inValido)
+        {
+            printf("target path não encontrado\n");
+            return;
+        }
+
+
+        fseek(in_file, 0, SEEK_END);
+        uint32_t file_size = ftell(in_file);
+        rewind(in_file);
+
+        printf("tamnho arquivo : %d\n", file_size);
+        uint32_t clusters_necessarios = calcular_clusters_necessarios(file_size, cluster_size);
+        uint32_t primeiro_cluster = alocar_clusters(image, clusters_necessarios, fat_offset, num_clusters);
+
+        touch(image, cluster_diretorio, bytes_per_sector, sectors_per_cluster, fat_offset, data_offset, token, file_size, primeiro_cluster, num_clusters);
+        //copy_clusters(image, src_cluster, primeiro_cluster, fat_offset, data_offset, cluster_size);
+        //printf ("cluster diretorio: %d nome arquivo %s \n", cluster_diretorio, token);
+        //printf ("cluster necessários: %d primeiro cluster %d \n", clusters_necessarios, primeiro_cluster);
+
+        uint32_t needed_clusters = (file_size + cluster_size - 1) / cluster_size;
+        uint32_t dest_cluster = alocar_clusters(image, needed_clusters, fat_offset, num_clusters);
+        if (dest_cluster == 0) {
+            printf("Erro: Espaço insuficiente na imagem\n");
+            fclose(in_file);
+            return;
+        }
+
+        uint8_t *buffer = malloc(cluster_size);
+        if (!buffer) {
+            fprintf(stderr, "Erro ao alocar memória\n");
+            fclose(in_file);
+            return;
+        }
+
+        uint32_t current_cluster = primeiro_cluster;
+        while (file_size > 0) {
+            size_t bytes_to_write = (file_size > cluster_size) ? cluster_size : file_size;
+            fread(buffer, 1, bytes_to_write, in_file);
+            uint32_t dest_address = data_offset + (current_cluster - 2) * cluster_size;
+            fseek(image, dest_address, SEEK_SET);
+            fwrite(buffer, 1, bytes_to_write, image);
+
+            file_size -= bytes_to_write;
+
+            if (file_size > 0) { 
+                uint32_t fat_dest_address = fat_offset + current_cluster * 4;
+                fseek(image, fat_dest_address, SEEK_SET);
+                fread(&current_cluster, sizeof(uint32_t), 1, image);
+                current_cluster &= 0x0FFFFFFF;
+
+                // Se o próximo cluster de destino não estiver alocado, deve-se alocar um novo
+                if (current_cluster >= EOC) {
+                    printf("Cópia concluída com sucesso!\n");
+                    free(buffer);
+                    return;
+                }
+            }
+        }
+
+        printf("Arquivo %s copiado para a imagem com sucesso!\n", sourcePath);
+        free(buffer);
+        fclose(in_file);
+
     }
 
-    uint32_t clusters_necessarios = calcular_clusters_necessarios(tamArquivo, cluster_size);
-    uint32_t primeiro_cluster = alocar_clusters(image, clusters_necessarios, fat_offset, num_clusters);
-
-    touch(image, cluster_diretorio, bytes_per_sector, sectors_per_cluster, fat_offset, data_offset, token, tamArquivo, primeiro_cluster);
-    copy_clusters(image, src_cluster, primeiro_cluster, fat_offset, data_offset, cluster_size);
-    //printf ("cluster diretorio: %d nome arquivo %s \n", cluster_diretorio, token);
-    //printf ("cluster necessários: %d primeiro cluster %d \n", clusters_necessarios, primeiro_cluster);
-    return;
 }
 
 //-----------------------------------------------------------------------------------------------------//

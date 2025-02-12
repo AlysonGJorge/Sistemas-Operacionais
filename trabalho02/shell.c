@@ -48,7 +48,7 @@ void process_command(char *command, FILE *file, const BootSector *bs, uint32_t *
         pwd(current_path);
     } else if (strcmp(args[0], "touch") == 0) {
         if (arg_count > 1) {
-            touch(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1],0,0);
+            touch(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1],0,0, num_clusters);
         } else {
             printf("Uso: touch NomeArquivo\n");
         }
