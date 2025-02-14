@@ -771,6 +771,8 @@ void mkdir(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
     uint32_t cluster = root_cluster;
     uint32_t cluster_size = bytes_per_sector * sectors_per_cluster;
     uint8_t buffer[SECTOR_SIZE];
+    uint32_t lastCluster;
+    int qtdEntrada1, qtdEntrada2;
 
     
     LFNEntry lfn_buffer[20];
@@ -825,7 +827,7 @@ void mkdir(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
     int qtdEntradas = tamNome/13;
     if (tamNome % 13) qtdEntradas ++;
     qtdEntradas ++;
-    uint32_t cluster_address_inicial;
+    uint32_t cluster_address_inicial1, cluster_address_inicial2;
     int qtdEspacosDisponiveis = 0;
      printf("Quantidade entradas: %d\n", qtdEntradas);
 
@@ -840,11 +842,11 @@ void mkdir(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
             DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
 
             if (entry->name[0] == 0x00 || entry->name[0] == 0xE5){ // Entrada vazia
-                if(qtdEspacosDisponiveis == 0) cluster_address_inicial = cluster_address + i;
+                if(qtdEspacosDisponiveis == 0) cluster_address_inicial1 = cluster_address + i;
                 qtdEspacosDisponiveis ++;
                 if (qtdEspacosDisponiveis == qtdEntradas) break;
             }else{
-                cluster_address_inicial = 0;
+                cluster_address_inicial1 = 0;
                 qtdEspacosDisponiveis = 0;
             }
     
@@ -854,18 +856,42 @@ void mkdir(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
         // Avança para o próximo cluster (usando a FAT)
         
         uint32_t fat_entry_address = fat_offset + cluster * 4;
+        lastCluster = cluster;
         fseek(image, fat_entry_address, SEEK_SET);
         fread(&cluster, sizeof(uint32_t), 1, image);
         cluster &= 0x0FFFFFFF;
     }
 
     ///Caso não tenha espaço criar novo cluster e relacionar com o diretorio
-
+    qtdEntrada1 = qtdEspacosDisponiveis;
      if (qtdEspacosDisponiveis != qtdEntradas) {
-        printf("Erro: Espaço insuficiente para criar o arquivo.\n");
-        return;
-      ///A fazer alocar um novo cluster para o diretorio e redirecionar o cluster atual na FAT
+        uint32_t newCluster = allocate_new_cluster(image, lastCluster, fat_offset, num_clusters);
+        if (!newCluster)
+        {
+            printf("Erro: Espaço insuficiente para criar o arquivo.\n");
+            return;
+        }
+        clear_cluster (image,newCluster,data_offset, cluster_size );
+        uint32_t cluster_address = data_offset + (newCluster - 2) * cluster_size;
+        fseek(image, cluster_address, SEEK_SET);
+        printf("cluster entrada: %ld\n", (long int) cluster_address);
+        fread(buffer, cluster_size, 1, image);
+        for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
+             uint8_t *entry_bytes = buffer + i;
+
+            DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
+
+            if (entry->name[0] == 0x00 || entry->name[0] == 0xE5){ // Entrada vazia
+                if(qtdEspacosDisponiveis == 0) cluster_address_inicial2 = cluster_address + i;
+                qtdEspacosDisponiveis ++;
+                if (qtdEspacosDisponiveis == qtdEntradas) break;
+            }else{
+                cluster_address_inicial2 = 0;
+                qtdEspacosDisponiveis = qtdEntrada1;
+            }
+        }
     }
+    qtdEntrada2 = qtdEntradas - qtdEntrada1;
 
     /// gerar o SFN
     DirectoryEntry *sfn = (DirectoryEntry *)malloc(sizeof(DirectoryEntry));
@@ -955,24 +981,47 @@ void mkdir(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
     printf("Esta aqui a saida: %s\n", teste_nome);
    
 
-    uint8_t buffer2[sizeof(LFNEntry)];
+    uint8_t buffer2[cluster_size];
     memset(buffer2, 0x00, sizeof(buffer2));
 
-    for (int i = 0; i < qtdEntradas -1; i++){
-        fseek(image, cluster_address_inicial + i * sizeof(LFNEntry), SEEK_SET);
-        printf("cluster escrita: %ld\n", (long int) (cluster_address_inicial + i * sizeof(LFNEntry)));
-        memcpy(buffer2, &lfn_buffer2[i], sizeof(LFNEntry));
-        print_hex( buffer2, sizeof(LFNEntry));
+    if (qtdEntrada2 == 0){
+        for (int i = 0; i < qtdEntradas -1; i++){
+            fseek(image, cluster_address_inicial1 + i * sizeof(LFNEntry), SEEK_SET);
+            printf("cluster escrita: %ld\n", (long int) (cluster_address_inicial1 + i * sizeof(LFNEntry)));
+            memcpy(buffer2, &lfn_buffer2[i], sizeof(LFNEntry));
+            print_hex( buffer2, sizeof(LFNEntry));
+            fwrite(buffer2, cluster_size, 1, image);
+        }
+
+        fseek(image, (cluster_address_inicial1 + (qtdEntradas -1) * sizeof(DirectoryEntry)), SEEK_SET);
+        memcpy(buffer2, sfn, sizeof(LFNEntry));
+        print_hex( buffer2, sizeof(DirectoryEntry));
         fwrite(buffer2, cluster_size, 1, image);
+        fflush(image);
+    }else{
+        for (int i = 0; i < qtdEntrada1; i++){
+            fseek(image, cluster_address_inicial1 + i * sizeof(LFNEntry), SEEK_SET);
+            printf("cluster escrita: %ld\n", (long int) (cluster_address_inicial1 + i * sizeof(LFNEntry)));
+            memcpy(buffer2, &lfn_buffer2[i], sizeof(LFNEntry));
+            print_hex( buffer2, sizeof(LFNEntry));
+            fwrite(buffer2, cluster_size, 1, image);
+        }
+
+        for (int i = 0; i < (qtdEntrada2 - 1); i++){
+            fseek(image, cluster_address_inicial2 + i * sizeof(LFNEntry), SEEK_SET);
+            printf("cluster escrita: %ld\n", (long int) (cluster_address_inicial2 + i * sizeof(LFNEntry)));
+            memcpy(buffer2, &lfn_buffer2[i], sizeof(LFNEntry));
+            print_hex( buffer2, sizeof(LFNEntry));
+            fwrite(buffer2, cluster_size, 1, image);
+        }
+
+        fseek(image, (cluster_address_inicial2 + (qtdEntrada2 -1) * sizeof(DirectoryEntry)), SEEK_SET);
+        memcpy(buffer2, sfn, sizeof(LFNEntry));
+        print_hex( buffer2, sizeof(DirectoryEntry));
+        fwrite(buffer2, cluster_size, 1, image);
+        fflush(image);
     }
-
-    fseek(image, (cluster_address_inicial + (qtdEntradas -1) * sizeof(DirectoryEntry)), SEEK_SET);
-    memcpy(buffer2, sfn, sizeof(LFNEntry));
-    print_hex( buffer2, sizeof(DirectoryEntry));
-    fwrite(buffer2, cluster_size, 1, image);
-    fflush(image);
-
-
+    
     uint32_t last_cluster = root_cluster;
     uint32_t last_cluster_address = data_offset + (starting_cluster - 2) * cluster_size;
     DirectoryEntry *sfn_last_cluster = (DirectoryEntry *)malloc(sizeof(DirectoryEntry));
