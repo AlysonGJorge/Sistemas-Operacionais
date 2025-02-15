@@ -1657,6 +1657,7 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
 
         printf("tamnho arquivo : %d\n", file_size);
         uint32_t clusters_necessarios = calcular_clusters_necessarios(file_size, cluster_size);
+        if(clusters_necessarios == 0 ) clusters_necessarios = 1;
         uint32_t primeiro_cluster = alocar_clusters(image, clusters_necessarios, fat_offset, num_clusters);
 
         touch(image, cluster_diretorio, bytes_per_sector, sectors_per_cluster, fat_offset, data_offset, token, file_size, primeiro_cluster, num_clusters);
