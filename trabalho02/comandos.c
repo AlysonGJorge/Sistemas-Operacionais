@@ -36,6 +36,12 @@ void gather_disk_info(FILE *image, const BootSector *bs, DiskInfo *info) {
 }
 
 void display_disk_info(const DiskInfo *info) {
+
+    uint32_t free_space = (info->free_clusters * info->cluster_size_bytes) - (info->reserved_clusters * info->cluster_size_bytes);
+    uint32_t used_space = (info->used_clusters * info->cluster_size_bytes) + (info->reserved_clusters * info->cluster_size_bytes);
+    uint32_t reserved_space = info->reserved_clusters * info->cluster_size_bytes;
+    uint32_t storage_capacity = info->total_clusters * info->cluster_size_bytes;
+
     printf("===== Informações do Disco =====\n");
     printf("Total de Setores: %u\n", info->total_sectors);
     printf("Tamanho da FAT (em setores): %u\n", info->fat_size_sectors);
@@ -47,6 +53,10 @@ void display_disk_info(const DiskInfo *info) {
     printf("Clusters Livres: %u\n", info->free_clusters);
     printf("Clusters Ocupados: %u\n", info->used_clusters);
     printf("Clusters Reservados: %u\n", info->reserved_clusters);
+    printf("Espaço livre (em bytes):                %u bytes       %f MB\n", free_space, free_space/pow(10,6));
+    printf("Espaço ocupado (em bytes):              %u bytes       %f MB\n", used_space, used_space/pow(10,6));
+    printf("Espaço reservado (em bytes):                %u bytes        %f MB\n", reserved_space, reserved_space/pow(10,6));
+    printf("Capacidade de armazenamento (em bytes): %u bytes       %f MB\n", storage_capacity, storage_capacity/pow(10,6));
 }
 
 void info_teste( FILE *file, const BootSector *bs){
