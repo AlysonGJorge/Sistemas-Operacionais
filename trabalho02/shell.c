@@ -66,7 +66,7 @@ void process_command(char *command, FILE *file, const BootSector *bs, uint32_t *
         }
     }  else if (strcmp(args[0], "cp") == 0) {
         if (arg_count > 2) {
-            cp(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1], args[2], fat, num_clusters, current_path);
+            cp(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1], args[2], fat, num_clusters);
         } else {
             printf("Uso: cp sourcePath targetPath\n");
         }
@@ -79,7 +79,7 @@ void process_command(char *command, FILE *file, const BootSector *bs, uint32_t *
         if (arg_count < 3)
             printf("Uso: mv <sourcePath> <targetPath>\n");
 
-        mv(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1], args[2], fat, num_clusters, current_path);
+        mv(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1], args[2], fat, num_clusters);
     } else if (strcmp(args[0], "rename") == 0) {
         if (arg_count < 3)
             printf("Uso: rename <filename> <new_filename>\n");
