@@ -1,5 +1,5 @@
+// Variável global para o diretório atual (inicia no cluster do root)
 #include "shell.h"
-
 
 void process_command(char *command, FILE *file, const BootSector *bs, uint32_t *fat, const char *image_path, uint32_t *current_cluster, char * current_path, char * last_path) {
     char *args[10];
@@ -66,28 +66,11 @@ void process_command(char *command, FILE *file, const BootSector *bs, uint32_t *
         }
     }  else if (strcmp(args[0], "cp") == 0) {
         if (arg_count > 2) {
-            cp(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1], args[2], fat, num_clusters);
+            cp(file, 2, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1], args[2], fat, num_clusters);
         } else {
             printf("Uso: cp sourcePath targetPath\n");
         }
-    } else  if (strcmp(args[0], "rmdir") == 0) {
-        if (arg_count < 2)
-            printf("Uso: rmdir <diretorio>\n");
-
-        rmdir(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1], fat, num_clusters);
-    } else if (strcmp(args[0], "mv") == 0) {
-        if (arg_count < 3)
-            printf("Uso: mv <sourcePath> <targetPath>\n");
-
-        mv(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1], args[2], fat, num_clusters);
-    } else if (strcmp(args[0], "rename") == 0) {
-        if (arg_count < 3)
-            printf("Uso: rename <filename> <new_filename>\n");
-
-        rename_file(file, *current_cluster, bs->bytes_per_sector, bs->sectors_per_cluster, fat_offset, data_offset, args[1], args[2], fat, num_clusters, current_path);
-    }
-    
-    else if (strcmp(args[0], "exit") == 0) {
+    }else if (strcmp(args[0], "exit") == 0) {
         printf("Saindo...\n");
         exit(0);
     } else {
