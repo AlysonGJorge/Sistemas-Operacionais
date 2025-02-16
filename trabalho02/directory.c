@@ -1,6 +1,190 @@
 #include "directory.h" // Para wchar_t e funções relacionadas
 
+int my_strcasecmp(const char *s1, const char *s2) {
+    while (*s1 && *s2) {
+        int c1 = tolower((unsigned char)*s1);
+        int c2 = tolower((unsigned char)*s2);
+        if (c1 != c2)
+            return c1 - c2;
+        s1++;
+        s2++;
+    }
+    return tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
+}
 
+int create_directory_entry(FILE *image, uint32_t dir_cluster, uint32_t data_offset,
+                            uint32_t cluster_size, uint32_t fat_ofsset, const char *filename,
+                            uint8_t attr, uint32_t size, uint32_t *start_cluster) { 
+
+    uint8_t *buffer = malloc(cluster_size);
+    if (!buffer) {
+        return 0;
+    }
+
+    uint32_t cluster_address = data_offset = (dir_cluster - 2) * cluster_size;
+    fseek(image, cluster_address, SEEK_SET);
+    fwrite(buffer, cluster_size, 1, image);
+
+    int entry_created = 0;
+    for (uint32_t offset = 0; offset < cluster_size; offset += sizeof(DirectoryEntry)) {
+        DirectoryEntry *entry = (DirectoryEntry *)(buffer + offset);
+        if ((uint8_t)entry->name[0] == EMPTY_ENTRY || (uint8_t)entry->name[0] == DELETED_ENTRY) {
+            memset(entry, 0, sizeof(DirectoryEntry));
+            
+            char formatted[12];
+            memset(formatted, ' ', 11);
+            formatted[11] = '\0';
+            int len = strlen(filename);
+            int dot = -1;
+            for (int i = 0; i < len; i++) {
+                if (filename[i] == '.') {
+                    dot = i;
+                    break;
+                }
+            }
+            if (dot == -1) {
+                for (int i = 0; i  < len && i < 8; i++) {
+                    formatted[i] = toupper(filename[i]);
+                }
+            } else {
+                for (int i = 0; i < len && i < 8; i++) {
+                    formatted[i] = toupper(filename[i]);
+                }
+                
+                for (int i = 0; i < len - dot - 1 && i < 3; i++) {
+                    formatted[8 + i] = toupper(filename[dot + 1 + i]);
+                }
+
+            }
+
+            memcpy(entry->name, formatted, 11);
+            entry->attr = attr;
+            entry->size = size;
+            entry->start_high = (uint16_t)(*start_cluster >> 16);
+            entry->start_low = (uint16_t)(*start_cluster & 0xFFFF);
+
+            fseek(image, cluster_address, SEEK_SET);
+            fwrite(buffer, cluster_size, 1, image);
+            entry_created = 1;
+            break;
+
+        }
+    }
+    free(buffer);
+    return entry_created;
+}
+
+int find_entry_in_directory(FILE *image, uint32_t dir_cluster, uint32_t data_offset,
+                            uint32_t cluster_size, const char *name, uint8_t req_attr,
+                            uint32_t *start_cluster, uint32_t *size) {
+    uint8_t *buffer = malloc(cluster_size);
+    if (!buffer) {
+        return 0;
+    }
+
+    uint32_t current_cluster = dir_cluster;
+    int found = 0;
+    uint32_t cluster_address  = data_offset + (current_cluster - 2) * cluster_size;
+    fseek(image, cluster_address, SEEK_SET);
+    fread(buffer, cluster_size, 1, image);
+
+    LFNEntry lfn_entries[20];
+    int lfn_count = 0;
+
+    for (uint32_t offset = 0; offset < cluster_size; offset += sizeof(DirectoryEntry)) {
+        DirectoryEntry *entry = (DirectoryEntry *)(buffer + offset);
+
+        if((uint8_t)entry->name[0] == EMPTY_ENTRY) {
+            break;
+        }
+
+        if ((uint8_t)entry->name[0] == DELETED_ENTRY) {
+            lfn_count = 0;
+            continue;
+        }
+
+        if (entry->attr == ATTR_LFN) {
+            LFNEntry *lfn = (LFNEntry *)entry;
+            if (lfn_count < 20) {
+                lfn_entries[lfn_count++] = *lfn;
+                continue;
+            }
+        }
+
+        char entry_name[256] = {0};
+        if (lfn_count > 0) {
+            reconstruct_long_name(entry_name, lfn_entries, lfn_count);
+            lfn_count = 0;
+        } else {
+            format_filename(entry->name, entry_name);
+        }
+
+        if (my_strcasecmp(entry_name, name) == 0) {
+            if (req_attr == 0 || entry->attr == req_attr) {
+                *start_cluster = (entry->start_high << 16) | entry->start_low;
+                *size = entry->size;
+                found = 1;
+                break;
+            }
+        }
+    }
+    free(buffer);
+    return found;
+}
+
+
+int is_directory_empty(FILE *image, uint32_t start_cluster, uint32_t fat_offset, uint32_t data_offset, uint32_t cluster_size) {
+    uint8_t *buffer = malloc(cluster_size);
+    if (!buffer) {
+        perror("Erro ao alocar memória");
+        return -1;
+    }
+
+    uint32_t cluster = start_cluster;
+    while (cluster < END_OF_CLUSTER) {
+        uint32_t cluster_address = data_offset + (cluster - 2) * cluster_size;
+        fseek(image, cluster_address, SEEK_SET);
+        fread(buffer, cluster_size, 1, image);
+
+        for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
+            DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
+
+            // Se encontramos uma entrada vazia, podemos assumir que não há mais itens válidos
+            if ((uint8_t)entry->name[0] == EMPTY_ENTRY) {
+                break;
+            }
+            // Ignorar entradas deletadas
+            if ((uint8_t)entry->name[0] == DELETED_ENTRY) {
+                continue;
+            }
+            // Caso seja uma entrada LFN, a pular
+            if (entry->attr == ATTR_LFN) {
+                continue;
+            }
+            // Ignorar as entradas especiais "." e ".."
+            if ((strncmp(entry->name, ".          ", 11) == 0) ||
+                (strncmp(entry->name, "..         ", 11) == 0)) {
+                continue;
+            }
+            // Se houver qualquer outra entrada, o diretório não está vazio
+            free(buffer);
+            return 0;
+        }
+
+        // Avançar para o próximo cluster
+  
+        uint32_t next_cluster;
+        fseek(image, fat_offset + cluster * 4, SEEK_SET);
+        fread(&next_cluster, sizeof(uint32_t), 1, image);
+        cluster = next_cluster & 0x0FFFFFFF;
+        if (cluster >= END_OF_CLUSTER) {
+            break;
+        }
+    }
+    
+    free(buffer);
+    return 1; // Diretório está vazio
+}
 
 
 void print_lfn_entry_hex(const LFNEntry *entry) {
@@ -77,7 +261,33 @@ void print_hex(const uint8_t *data, size_t size) {
     }
 }
 
+void format_filename(const char *raw, char *formatted) {
+    char name[9] = {0}, ext[4] = {0};
+    memcpy(name, raw, 8);
+    memcpy(ext, raw + 8, 3);
 
+    for (int i = 7; i >= 0; i--) {
+        if (name[i] == ' ') {
+            name[i] = '\0';
+        } else {
+            break;
+        }
+    }
+
+    for (int i = 2; i >= 0; i--) {
+        if (name[i] == ' ') {
+            name[i] = '\0';
+        } else {
+            break;
+        }
+    }
+
+    if (strlen(ext) > 0) {
+        sprintf(formatted, "%s.%s", name, ext);
+    } else {
+        sprintf(formatted, "%s", name);
+    }
+}
 
 void read_directory(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset) {
     uint32_t cluster = root_cluster;
