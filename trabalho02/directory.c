@@ -12,6 +12,35 @@ int my_strcasecmp(const char *s1, const char *s2) {
     return tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
 }
 
+void format_filename(const char *raw, char *formatted) {
+    char name[9] = {0}, ext[4] = {0};
+    memcpy(name, raw, 8);
+    memcpy(ext, raw + 8, 3);
+
+    for (int i = 7; i >= 0; i--) {
+        if (name[i] == ' ') {
+            name[i] = '\0';
+        } else {
+            break;
+        }
+    }
+
+    for (int i = 2; i >= 0; i--) {
+        if (name[i] == ' ') {
+            name[i] = '\0';
+        } else {
+            break;
+        }
+    }
+
+    if (strlen(ext) > 0) {
+        sprintf(formatted, "%s.%s", name, ext);
+    } else {
+        sprintf(formatted, "%s", name);
+    }
+}
+
+
 int create_directory_entry(FILE *image, uint32_t dir_cluster, uint32_t data_offset,
                             uint32_t cluster_size, uint32_t fat_ofsset, const char *filename,
                             uint8_t attr, uint32_t size, uint32_t *start_cluster) { 
@@ -258,34 +287,6 @@ void print_hex(const uint8_t *data, size_t size) {
     }
     if (size % 16 != 0) { // Quebra de linha no final, se necessário
         printf("\n");
-    }
-}
-
-void format_filename(const char *raw, char *formatted) {
-    char name[9] = {0}, ext[4] = {0};
-    memcpy(name, raw, 8);
-    memcpy(ext, raw + 8, 3);
-
-    for (int i = 7; i >= 0; i--) {
-        if (name[i] == ' ') {
-            name[i] = '\0';
-        } else {
-            break;
-        }
-    }
-
-    for (int i = 2; i >= 0; i--) {
-        if (name[i] == ' ') {
-            name[i] = '\0';
-        } else {
-            break;
-        }
-    }
-
-    if (strlen(ext) > 0) {
-        sprintf(formatted, "%s.%s", name, ext);
-    } else {
-        sprintf(formatted, "%s", name);
     }
 }
 

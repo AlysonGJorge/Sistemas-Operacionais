@@ -1308,80 +1308,26 @@ int contabarras (char string[]) {
    return contabarras;
 } 
 
-void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, char * sourcePath, char * targetPath, uint32_t * fat, uint32_t num_clusters, char *current_path){
+void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, char * sourcePath, char * targetPath, uint32_t * fat, uint32_t num_clusters){
     uint32_t cluster = root_cluster;
-    printf("root_cluster: %d\n", root_cluster);
-    printf("current_path: %s\n", current_path);
-
-    char *actual_path = malloc(strlen(current_path) + 1);
-    char true_path[strlen(current_path)];
-    strcpy(actual_path, current_path);
-
-    int fstSlash = 0;
-    int truesize = 0;
-    for(int i = strlen(actual_path) - 1; (actual_path[i] == '/' && fstSlash == 1) ; i--){
-        if(actual_path[i] == '/'){
-            fstSlash = 1;
-            actual_path[i] = '\0';
-        }
-        truesize++;
-    }
-
-
-
-    printf("true_path: %s\n", true_path);
-
     uint32_t cluster_size = bytes_per_sector * sectors_per_cluster;
     uint8_t *buffer = malloc(cluster_size);
     int inAchou = 0;
     int inValido = 0;
     uint32_t cluster_inicial, tamArquivo, cluster_diretorio; 
-    char *tokenize;
-    char token[256];
-    char nextToken[256];
-    char *nmArquivo;
+    char * token;
+    char * nextToken;
+    char * nmArquivo;
     uint32_t starting_cluster, src_cluster;
-    int barcount = contabarras(sourcePath);
-    int barcount2 = contabarras(targetPath);
-    char **tokens_src = malloc((barcount + 1) * sizeof(char *));
-    char **tokens_target = malloc((barcount2 + 1) * sizeof(char *));
-    
-    tokenize = strtok(sourcePath, "/");
-    for(int i = 0; tokenize != NULL && i < barcount + 1; i++){
-        tokens_src[i] = tokenize;
-        tokenize = strtok(NULL, "/");
-    }
-    printf("tokens_src[-1]: %s\n", tokens_src[barcount]);
 
-    tokenize = strtok(targetPath, "/");
-    for(int i = 0; tokenize != NULL && i < barcount2 + 1; i++){
-        tokens_target[i] = tokenize;
-        tokenize = strtok(NULL, "/");
-    }
-    printf("tokens_target[-1]: %s\n", tokens_target[barcount2]);
 
     if(!(strncmp(sourcePath, "img", 3)) && !(strncmp(targetPath, "img", 3))){
-        int advance_token = 1;
-        printf("Entrou aqui\n");
-        // strcpy(sourcePath, sourcePath + 3);
-        // strcpy(targetPath, targetPath + 3);
-        
-        
-        int idx_src = barcount;
-        int idx_target = barcount2;
-
-        strcpy(token, tokens_src[idx_src]);
-        char nextTokenBuffer[256];
-        if (idx_src +1 < barcount + 1) {
-            strcpy(nextTokenBuffer, tokens_src[idx_src + 1]);
-        } else {
-            nextTokenBuffer[0] = '\0';
-        }
-
-        
-        
-
-        printf("token: %s --- Next token: %s \n", token, nextTokenBuffer);
+        printf("Entrou aqui");
+        strcpy(sourcePath, sourcePath + 3);
+        strcpy(targetPath, targetPath + 3);
+        token = strtok(sourcePath,"/");
+        nextToken = strtok(NULL, "/");
+        printf("token: %s --- Next token: %s \n", token, nextToken);
 
         LFNEntry lfn_buffer[20];
         int lfn_index = 0;
@@ -1394,7 +1340,7 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
                 uint8_t *entry_bytes = buffer + i;
 
                 DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
-                printf("Entry attr: %d\n", entry->attr);
+
                 if (entry->name[0] == 0x00) // Entrada vazia
                     break;
 
@@ -1411,29 +1357,20 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
                     // Reconstrói o nome longo se existirem entradas LFN
                     char long_name[256] = {0};
                     if (lfn_index > 0) {
-                        printf("LFN index: %d\n", lfn_index);
                         reconstruct_long_name(long_name, lfn_buffer, lfn_index);
-                        printf("LFN reconstruído: %s\n", long_name);
                         lfn_index = 0;
                         printf("token: %s --- long_name %s \n", token, long_name);
-
-                        if (strcasecmp(token, long_name) == 0) {
-                            printf("Token correspondente ao long_name: %s\n", long_name);
-                        } else {
-                            printf("Token e long_name não coincidem: token = %s, long_name = %s\n", token, long_name);
-                        }
-
                         if (!strcmp(token, long_name))
                         {
-                            if (idx_src +1 < (barcount + 1))
+                            if (nextToken != NULL)
                             {
                                 starting_cluster = (entry->start_high << 16) | entry->start_low;
                                 cluster_address = data_offset + (starting_cluster - 2) * cluster_size;
                                 fseek(image, cluster_address, SEEK_SET);
                                 fread(buffer, cluster_size, 1, image);
-                                i=0;
-                                idx_src++;
-                                strcpy(token, tokens_src[idx_src]);
+                                i = 0;
+                                strcpy(token, nextToken);
+                                nextToken = strtok(NULL, "/"); // Próximo token
                             }else if (entry->attr = ATTR_ARCHIVE)
                             {
                                 tamArquivo = entry->size;
@@ -1445,7 +1382,6 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
                         }         
                     }
                 }
-                advance_token--;
             }
             // Avança para o próximo cluster (usando a FAT)
             if(!inAchou){
@@ -1458,26 +1394,17 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
             }
         }
         if (!inAchou)
-        {   
-            printf("To no primeiro if\n");
+        {
             printf("Source path não encontrado\n");
             return;
         }
         
 
         cluster = root_cluster;
-        strcpy(token, tokens_target[idx_target]);
-        if (idx_target + 1 < barcount2 + 1) {
-            strcpy(nextTokenBuffer, tokens_target[idx_target + 1]);
-        } else {
-            nextTokenBuffer[0] = '\0';
-        }
-
-        
-        
-
+        token = strtok(targetPath,"/");
+        nextToken = strtok(NULL, "/");
         starting_cluster = root_cluster;
-        printf("token: %s --- Next token: %s \n", token, nextTokenBuffer);
+        printf("token: %s --- Next token: %s \n", token, nextToken);
         while (cluster < 0x0FFFFFF8) { // Clusters válidos no FAT32
             uint32_t cluster_address = data_offset + (cluster - 2) * cluster_size;
             fseek(image, cluster_address, SEEK_SET);
@@ -1517,15 +1444,15 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
                         printf("token: %s --- long_name %s \n", token, long_name);
                         if (!strcmp(token, long_name))
                         {
-                            if (idx_target + 1 < (barcount2 + 1))
+                            if (nextToken != NULL)
                             {
                                 starting_cluster = (entry->start_high << 16) | entry->start_low;
                                 cluster_address = data_offset + (starting_cluster - 2) * cluster_size;
                                 fseek(image, cluster_address, SEEK_SET);
                                 fread(buffer, cluster_size, 1, image);
                                 i = 0;
-                                idx_target++;
-                                strcpy(token, tokens_target[idx_target]);
+                                strcpy(token, nextToken);
+                                nextToken = strtok(NULL, "/"); // Próximo token
                             }   
                         }         
                     }
@@ -1560,21 +1487,8 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
     }else if (!(strncmp(sourcePath, "img", 3)) && !(strncmp(targetPath, "/", 1)))
     {
         strcpy(sourcePath, sourcePath + 3);
-       
-        int idx_src = barcount;
-        int idx_target = barcount2;
-
-        strcpy(token, tokens_src[idx_src]);
-        char nextTokenBuffer[256];
-        if (idx_src +1 < barcount + 1) {
-            strcpy(nextTokenBuffer, tokens_src[idx_src + 1]);
-        } else {
-            nextTokenBuffer[0] = '\0';
-        }
-
-        
-        
-
+        token = strtok(sourcePath,"/");
+        nextToken = strtok(NULL, "/");
         printf("token: %s --- Next token: %s \n", token, nextToken);
 
         LFNEntry lfn_buffer[20];
@@ -1610,15 +1524,15 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
                         printf("token: %s --- long_name %s \n", token, long_name);
                         if (!strcmp(token, long_name))
                         {
-                            if (idx_src + 1 < (barcount + 1))
+                            if (nextToken != NULL)
                             {
                                 starting_cluster = (entry->start_high << 16) | entry->start_low;
                                 cluster_address = data_offset + (starting_cluster - 2) * cluster_size;
                                 fseek(image, cluster_address, SEEK_SET);
                                 fread(buffer, cluster_size, 1, image);
-                                i=0;
-                                idx_src++;
-                                strcpy(token, tokens_src[idx_src]);
+                                i = 0;
+                                strcpy(token, nextToken);
+                                nextToken = strtok(NULL, "/"); // Próximo token
                             }else if (entry->attr = ATTR_ARCHIVE)
                             {
                                 tamArquivo = entry->size;
@@ -1688,20 +1602,8 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
         }
 
         cluster = root_cluster;
-        int idx_src = barcount;
-        int idx_target = barcount2;
-
-        strcpy(token, tokens_target[idx_target]);
-        char nextTokenBuffer[256];
-        if (idx_target +1 < barcount + 1) {
-            strcpy(nextTokenBuffer, tokens_src[idx_target + 1]);
-        } else {
-            nextTokenBuffer[0] = '\0';
-        }
-
-        
-        
-
+        token = strtok(targetPath,"/");
+        nextToken = strtok(NULL, "/");
         starting_cluster = root_cluster;
         LFNEntry lfn_buffer[20];
         int lfn_index = 0;
@@ -1745,15 +1647,15 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
                         printf("token: %s --- long_name %s \n", token, long_name);
                         if (!strcmp(token, long_name))
                         {
-                            if (idx_target + 1 < (barcount2 + 1))
+                            if (nextToken != NULL)
                             {
                                 starting_cluster = (entry->start_high << 16) | entry->start_low;
                                 cluster_address = data_offset + (starting_cluster - 2) * cluster_size;
                                 fseek(image, cluster_address, SEEK_SET);
                                 fread(buffer, cluster_size, 1, image);
-                                i=0;
-                                idx_target++;
-                                strcpy(token, tokens_target[idx_target]);
+                                i = 0;
+                                strcpy(token, nextToken);
+                                nextToken = strtok(NULL, "/"); // Próximo token
                             }   
                         }         
                     }
@@ -1838,7 +1740,6 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
     }
 
 }
-
 void rmdir(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, char * nmArquivo, uint32_t * fat, uint32_t num_clusters) {
     uint32_t cluster = root_cluster;
     uint32_t cluster_size = bytes_per_sector * sectors_per_cluster;
@@ -1925,13 +1826,13 @@ void rmdir(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
 }
 
 
-void mv(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, char * sourcePath, char * targetPath, uint32_t * fat, uint32_t num_clusters, char *current_path) {
+void mv(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, char * sourcePath, char * targetPath, uint32_t * fat, uint32_t num_clusters) {
 
 
     char mod_source[256];
     strcpy(mod_source, sourcePath);
     
-    cp(image, root_cluster, bytes_per_sector, sectors_per_cluster, fat_offset, data_offset, sourcePath, targetPath, fat, num_clusters, current_path);
+    cp(image, root_cluster, bytes_per_sector, sectors_per_cluster, fat_offset, data_offset, sourcePath, targetPath, fat, num_clusters);
 
     
     char *dummy = strtok(mod_source, "/");
@@ -1973,7 +1874,7 @@ void rename_file(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, 
    
     
 
-    mv(image, root_cluster, bytes_per_sector, sectors_per_cluster, fat_offset, data_offset, source_path, target_path, fat, num_clusters, current_path);
+    mv(image, root_cluster, bytes_per_sector, sectors_per_cluster, fat_offset, data_offset, source_path, target_path, fat, num_clusters);
 
 
 }
