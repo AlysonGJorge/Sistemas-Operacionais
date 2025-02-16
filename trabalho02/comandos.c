@@ -230,16 +230,9 @@ void attr(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_
 void ls(FILE *image, uint32_t cluster_path, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset) {
     uint32_t cluster = cluster_path;
     uint32_t cluster_size = bytes_per_sector * sectors_per_cluster;
-    uint8_t *buffer = malloc(cluster_size);
-    if(!buffer){
-        perror("Erro ao alocar buffer para leitura do cluster");
-        return;
-    }
+    uint8_t buffer[SECTOR_SIZE];
 
-    // printf("Cluster_path: %d\n", (int) cluster_path);
-    // printf("Fat_offset: %d\n", (int) fat_offset);
-    // printf("Data_offset: %d\n", (int) data_offset);
-
+    
     LFNEntry lfn_buffer[20];
     int lfn_index = 0;
     while (cluster < 0x0FFFFFF8) { // Clusters válidos no FAT32
@@ -277,12 +270,8 @@ void ls(FILE *image, uint32_t cluster_path, uint32_t bytes_per_sector, uint32_t 
                     reconstruct_long_name(long_name, lfn_buffer, lfn_index);
                     lfn_index = 0; // Limpa o índice
                 }
-                
+
                 uint32_t starting_cluster = (entry->start_high << 16) | entry->start_low;
-
-                if(entry->attr & ATTR_VOLUME_ID)
-                    continue;
-
                 if (entry->attr & ATTR_DIRECTORY) {
                     printf("[DIR] %s (%.11s) - Cluster: %u\n", 
                         (strlen(long_name) > 0) ? long_name : entry->name, 
@@ -557,12 +546,9 @@ void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
                 if (lfn_index > 0) {
                     reconstruct_long_name(long_name, lfn_buffer, lfn_index);
                     lfn_index = 0; // Limpa o índice
-                    uint32_t found_cluster = (entry->start_high << 16) | entry->start_low;
                     if(!strcmp(long_name, nmArquivo)){
-                        if((uint8_t) entry->name[0] != DELETED_ENTRY){
-                            printf ("Arquivo encontrado com o mesmo nome : %s\n", nmArquivo);
-                            return;
-                        }
+                        printf ("Arquivo encontrado com o mesmo nome : %s\n", nmArquivo);
+                        return;
                     }
                 }
             }
@@ -578,7 +564,7 @@ void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
     cluster_size = bytes_per_sector * sectors_per_cluster;
     buffer[SECTOR_SIZE];
 
-
+    int teste = 0;
     int tamNome = strlen(nmArquivo);
     int qtdEntradas = tamNome/13;
     if (tamNome % 13) qtdEntradas ++;
@@ -593,6 +579,7 @@ void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
         printf("cluster entrada: %ld\n", (long int) cluster_address);
         fread(buffer, cluster_size, 1, image);
         for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
+            teste ++;
              uint8_t *entry_bytes = buffer + i;
 
             DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
@@ -618,6 +605,7 @@ void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
         cluster &= 0x0FFFFFFF;
     }
 
+    printf("Este e o teste %d", teste);
     ///Caso não tenha espaço criar novo cluster e relacionar com o diretorio
     qtdEntrada1 = qtdEspacosDisponiveis;
      if (qtdEspacosDisponiveis != qtdEntradas) {
@@ -662,7 +650,7 @@ void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
     struct tm *tm_info = localtime(&t);
 
     strncpy(sfn->name, sfnNome,11);
-    sfn->attr = ATTR_ARCHIVE;
+    sfn->attr = ATTR_FILE;
     sfn->date = ((tm_info->tm_year - 80) << 9) | ((tm_info->tm_mon + 1) << 5) | tm_info->tm_mday;
     sfn->time = (tm_info->tm_hour << 11) | (tm_info->tm_min << 5) | (tm_info->tm_sec / 2);
     sfn->date_mod = sfn->date;
@@ -734,26 +722,27 @@ void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
     memset(buffer2, 0x00, sizeof(buffer2));
 
     if (qtdEntrada2 == 0){
+        printf("Entrou aqui %d \n",cluster_address_inicial1);
         for (int i = 0; i < qtdEntradas -1; i++){
             fseek(image, cluster_address_inicial1 + i * sizeof(LFNEntry), SEEK_SET);
             printf("cluster escrita: %ld\n", (long int) (cluster_address_inicial1 + i * sizeof(LFNEntry)));
             memcpy(buffer2, &lfn_buffer2[i], sizeof(LFNEntry));
             print_hex( buffer2, sizeof(LFNEntry));
-            fwrite(buffer2, cluster_size, 1, image);
+            fwrite(buffer2, sizeof(LFNEntry), 1, image);
         }
 
         fseek(image, (cluster_address_inicial1 + (qtdEntradas -1) * sizeof(DirectoryEntry)), SEEK_SET);
         memcpy(buffer2, sfn, sizeof(LFNEntry));
         print_hex( buffer2, sizeof(DirectoryEntry));
-        fwrite(buffer2, cluster_size, 1, image);
-        fflush(image);
+        fwrite(buffer2,  sizeof(DirectoryEntry), 1, image);
+        //fflush(image);
     }else{
         for (int i = 0; i < qtdEntrada1; i++){
             fseek(image, cluster_address_inicial1 + i * sizeof(LFNEntry), SEEK_SET);
             printf("cluster escrita: %ld\n", (long int) (cluster_address_inicial1 + i * sizeof(LFNEntry)));
             memcpy(buffer2, &lfn_buffer2[i], sizeof(LFNEntry));
             print_hex( buffer2, sizeof(LFNEntry));
-            fwrite(buffer2, cluster_size, 1, image);
+            fwrite(buffer2, sizeof(LFNEntry), 1, image);
         }
 
         for (int i = 0; i < (qtdEntrada2 - 1); i++){
@@ -761,13 +750,13 @@ void touch(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32
             printf("cluster escrita: %ld\n", (long int) (cluster_address_inicial2 + i * sizeof(LFNEntry)));
             memcpy(buffer2, &lfn_buffer2[i], sizeof(LFNEntry));
             print_hex( buffer2, sizeof(LFNEntry));
-            fwrite(buffer2, cluster_size, 1, image);
+            fwrite(buffer2, sizeof(LFNEntry), 1, image);
         }
 
         fseek(image, (cluster_address_inicial2 + (qtdEntrada2 -1) * sizeof(DirectoryEntry)), SEEK_SET);
         memcpy(buffer2, sfn, sizeof(LFNEntry));
         print_hex( buffer2, sizeof(DirectoryEntry));
-        fwrite(buffer2, cluster_size, 1, image);
+        fwrite(buffer2, sizeof(LFNEntry), 1, image);
         fflush(image);
     }
     
@@ -1148,22 +1137,14 @@ void rm(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
                             return;
                         }else{
                             
-                          
-                            fseek(image, cluster_address + i, SEEK_SET);
-                            uint8_t marker = 0xE5;
-                            fwrite(&marker, sizeof(uint8_t), 1, image);
-                            fflush(image);
-
+                            entry->name[0] = (uint8_t) 0xE5;
                             for (int j = 0; j < lfn_index; j++) {
-                                uint32_t lfn_offset = i - j * sizeof(DirectoryEntry);
-                                fseek(image, cluster_address + lfn_offset, SEEK_SET);
-                                uint8_t marker = 0xE5;
-                                fwrite(&marker, sizeof(uint8_t), 1, image);
+                                 lfn_buffer[j].order = (uint8_t) 0xE5;
                             }
 
-                            // fseek(image, cluster_address + i, SEEK_SET);
-                            // fwrite(entry, sizeof(DirectoryEntry), 1, image);
-                            // fflush(image);
+                            fseek(image, cluster_address + i, SEEK_SET);
+                            fwrite(entry, sizeof(DirectoryEntry), 1, image);
+                            fflush(image);
 
                             uint32_t starting_cluster = (entry->start_high << 16) | entry->start_low;
                             printf ("cluster inicial %d \n", starting_cluster );
@@ -1263,7 +1244,7 @@ void copy_clusters(FILE *image, uint32_t src_cluster, uint32_t dest_cluster, uin
     uint32_t current_src = src_cluster;
     uint32_t current_dest = dest_cluster;
 
-    while (current_src < END_OF_CLUSTER) {
+    while (current_src < EOC) {
         // Calcula endereço do cluster de origem e lê os dados
         uint32_t src_address = data_offset + (current_src - 2) * cluster_size;
         fseek(image, src_address, SEEK_SET);
@@ -1287,7 +1268,7 @@ void copy_clusters(FILE *image, uint32_t src_cluster, uint32_t dest_cluster, uin
         current_dest &= 0x0FFFFFFF;
 
         // Se o próximo cluster de destino não estiver alocado, deve-se alocar um novo
-        if (current_dest >= END_OF_CLUSTER) {
+        if (current_dest >= EOC) {
             printf("Cópia concluída com sucesso!\n");
             free(buffer);
             return;
@@ -1298,15 +1279,7 @@ void copy_clusters(FILE *image, uint32_t src_cluster, uint32_t dest_cluster, uin
     printf("Cópia concluída com sucesso!\n");
 }
 
-int contabarras (char string[]) {
-    int contabarras = 0;
-    for (int i = 0; string[i] != '\0'; i++) {
-        if(string[i] == '/'){
-            contabarras++;
-        }
-    }
-   return contabarras;
-} 
+
 
 void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, char * sourcePath, char * targetPath, uint32_t * fat, uint32_t num_clusters){
     uint32_t cluster = root_cluster;
@@ -1371,7 +1344,7 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
                                 i = 0;
                                 strcpy(token, nextToken);
                                 nextToken = strtok(NULL, "/"); // Próximo token
-                            }else if (entry->attr = ATTR_ARCHIVE)
+                            }else if (entry->attr = ATTR_FILE)
                             {
                                 tamArquivo = entry->size;
                                 src_cluster = (entry->start_high << 16) | entry->start_low;
@@ -1477,6 +1450,7 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
         }
 
         uint32_t clusters_necessarios = calcular_clusters_necessarios(tamArquivo, cluster_size);
+        if(clusters_necessarios == 0) clusters_necessarios = 1;
         uint32_t primeiro_cluster = alocar_clusters(image, clusters_necessarios, fat_offset, num_clusters);
 
         touch(image, cluster_diretorio, bytes_per_sector, sectors_per_cluster, fat_offset, data_offset, token, tamArquivo, primeiro_cluster, num_clusters);
@@ -1533,7 +1507,7 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
                                 i = 0;
                                 strcpy(token, nextToken);
                                 nextToken = strtok(NULL, "/"); // Próximo token
-                            }else if (entry->attr = ATTR_ARCHIVE)
+                            }else if (entry->attr = ATTR_FILE)
                             {
                                 tamArquivo = entry->size;
                                 src_cluster = (entry->start_high << 16) | entry->start_low;
@@ -1577,7 +1551,7 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
         }
 
         uint32_t current_cluster = src_cluster;
-        while (current_cluster < END_OF_CLUSTER) {
+        while (current_cluster < EOC) {
             uint32_t src_address = data_offset + (current_cluster - 2) * cluster_size;
             fseek(image, src_address, SEEK_SET);
             fread(buffer, cluster_size, 1, image);
@@ -1686,6 +1660,7 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
 
         printf("tamnho arquivo : %d\n", file_size);
         uint32_t clusters_necessarios = calcular_clusters_necessarios(file_size, cluster_size);
+        if(clusters_necessarios == 0 ) clusters_necessarios = 1;
         uint32_t primeiro_cluster = alocar_clusters(image, clusters_necessarios, fat_offset, num_clusters);
 
         touch(image, cluster_diretorio, bytes_per_sector, sectors_per_cluster, fat_offset, data_offset, token, file_size, primeiro_cluster, num_clusters);
@@ -1725,7 +1700,7 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
                 current_cluster &= 0x0FFFFFFF;
 
                 // Se o próximo cluster de destino não estiver alocado, deve-se alocar um novo
-                if (current_cluster >= END_OF_CLUSTER) {
+                if (current_cluster >= EOC) {
                     printf("Cópia concluída com sucesso!\n");
                     free(buffer);
                     return;
@@ -1740,145 +1715,6 @@ void cp(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t 
     }
 
 }
-void rmdir(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, char * nmArquivo, uint32_t * fat, uint32_t num_clusters) {
-    uint32_t cluster = root_cluster;
-    uint32_t cluster_size = bytes_per_sector * sectors_per_cluster;
-    uint8_t *buffer = malloc(cluster_size);
-    int inAchou = 0;
-    uint32_t cluster_inicial;
 
-    LFNEntry lfn_buffer[20];
-    int lfn_index = 0;
-    while (cluster < CLUSTER_END) {
-        uint32_t cluster_address = data_offset + (cluster - 2) * cluster_size;
-        fseek(image, cluster_address, SEEK_SET);
-        fread(buffer, cluster_size, 1, image);
-        
-        for (int i = 0; i < cluster_size; i += sizeof(DirectoryEntry)) {
-            uint8_t *entry_bytes = buffer + i;
-    
-            DirectoryEntry *entry = (DirectoryEntry *)(buffer + i);
-    
-            if (entry->name[0] == EMPTY_ENTRY) // Entrada vazia
-                break;
-            if (entry->name[0] == DELETED_ENTRY) // Entrada deletada
-                continue;
-            if (entry->attr == ATTR_LFN) {
-                LFNEntry *lfn_entry = (LFNEntry *)(entry_bytes);
-                if ((lfn_entry->order & 0x40) != 0) {
-                    lfn_index = 0;
-                    cluster_inicial = cluster_address + i;
-                }
-                lfn_buffer[lfn_index++] = *lfn_entry;            
-            } else {
-                char long_name[256] = {0};
-                if (lfn_index > 0) {
-                    reconstruct_long_name(long_name, lfn_buffer, lfn_index);
-                    uint32_t dir_cluster = ((uint32_t)entry->start_high) |  ((uint32_t)entry->start_low << 16);
-                    if(!strcmp(long_name, nmArquivo)) {
-                       if(!(entry->attr & ATTR_DIRECTORY)) {
-                            printf("Não é um diretório\n");
-                            return;
-                       } 
-
-                       // checa se há arquivos dentro do diretório
-                       if(!is_directory_empty(image, dir_cluster, fat_offset, data_offset, cluster_size)) {
-                            printf("Erro: diretório não está vazio\n");
-                            return;
-                       }
-
-                       entry->name[0] = (uint8_t) DELETED_ENTRY;
-                       for (int j = 0; j < lfn_index; j++) {
-                           lfn_buffer[j].order = (uint8_t) DELETED_ENTRY;
-                       }
-       
-                       fseek(image, cluster_address + i, SEEK_SET);
-                       fwrite(entry, sizeof(DirectoryEntry), 1, image);
-                       fflush(image);
-       
-                       uint32_t starting_cluster = (entry->start_high << 16) | entry->start_low;
-                       entry->start_low;
-                       printf("Cluster inicial %d\n", starting_cluster);
-                       free_clusters(image, starting_cluster, fat_offset);
-                       inAchou = 1;
-                       break;
-
-                    }
-                    lfn_index = 0;
-                }
-               
-            }
-
-        }
-        // Avança para o próximo cluster (usando a FAT)
-        uint32_t fat_entry_address = fat_offset + cluster * 4;
-        fseek(image, fat_entry_address, SEEK_SET);
-        fread(&cluster, sizeof(uint32_t), 1, image);
-        cluster &= 0x0FFFFFFF;
-    }
-
-    if(!inAchou) {
-        printf("Diretório não encontrado\n");
-        return;
-    }
-
-
-}
-
-
-void mv(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, char * sourcePath, char * targetPath, uint32_t * fat, uint32_t num_clusters) {
-
-
-    char mod_source[256];
-    strcpy(mod_source, sourcePath);
-    
-    cp(image, root_cluster, bytes_per_sector, sectors_per_cluster, fat_offset, data_offset, sourcePath, targetPath, fat, num_clusters);
-
-    
-    char *dummy = strtok(mod_source, "/");
-    char *scPath = strtok(NULL, "/");
-    // printf("sourcePath: %s\n", scPath);
-    if (scPath == NULL)
-    {
-        printf("Erro: sourcePath inválido\n");
-        return;
-    }
-
-    rm(image, root_cluster, bytes_per_sector, sectors_per_cluster, fat_offset, data_offset, scPath, fat, num_clusters);
-}
-
-
-char *format_path(char *name, char *current_path) {
-    char fixed_path[256];
-    char source_path[256];
-    strcpy(source_path, "img");
-    strcpy(fixed_path, current_path);
-    strcat(source_path, strcat(fixed_path, name));
-    printf("source_path: %s\n", source_path);
-    char *result = malloc(strlen(source_path) + 1);
-    if (!result) {
-        perror("Erro ao alocar memória");
-        exit(1);
-    }
-    strcpy(result, source_path);
-    return result;
-}
-
-
-
-void rename_file(FILE *image, uint32_t root_cluster, uint32_t bytes_per_sector, uint32_t sectors_per_cluster, uint32_t fat_offset, uint32_t data_offset, char * filename, char *new_filename, uint32_t *fat, uint32_t num_clusters, char* current_path) {
-    // pega o nome do diretorio atual
-    
-    char *source_path = format_path(filename, current_path);
-    char *target_path = format_path(new_filename, current_path);
-   
-    
-
-    mv(image, root_cluster, bytes_per_sector, sectors_per_cluster, fat_offset, data_offset, source_path, target_path, fat, num_clusters);
-
-
-}
-
-//  mv img/hello.txt img/livros/hello.txt
 //-----------------------------------------------------------------------------------------------------//
 /*cp*/

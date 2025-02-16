@@ -6,6 +6,7 @@
 #include "bootsector.h"
 #include "directory.h"
 #include "fat.h"
+#include <math.h>
 
 #define ATTR_DIRECTORY 0x10
 #define ATTR_ARCHIVE 0x20
